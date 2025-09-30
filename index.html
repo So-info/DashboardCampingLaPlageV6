@@ -285,27 +285,42 @@ const firebaseConfig = {
   });
   $('#btn-logout').addEventListener('click', ()=> signOut(auth));
 
-  onAuthStateChanged(auth, async (user)=>{
-    if(!user){ hideApp(); return; }
-    currentUser = user;
-    // Create or fetch user profile/role
-    const uref = doc(db,'users', user.uid);
-    const snap = await getDoc(uref);
-    if(!snap.exists()){
-      // first login -> default reception (change in admin)
-      await setDoc(uref, { uid:user.uid, email:user.email, name:user.displayName||'', role:'reception', createdAt:serverTimestamp(), active:true });
-      currentRole = 'reception';
-    }else{
-      const d = snap.data();
-      if(d.active===false){ alert('Compte désactivé.'); await signOut(auth); return; }
-      currentRole = d.role;
-    }
-    $('#user-email').textContent = currentUser.email || '';
-    $('#role-badge').textContent = currentRole||'';
-    show();
-    buildTabs();
-    navigateTo(location.hash.replace('#','')||defaultRoute());
-  });
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { hideApp(); return; }
+
+  currentUser = user;
+
+  // 1) Récupère ou crée le profil avec rôle 'pending' au 1er login
+  const uref = doc(db, 'users', user.uid);
+  let snap = await getDoc(uref);
+  if (!snap.exists()) {
+    await setDoc(uref, {
+      uid: user.uid,
+      email: user.email,
+      name: user.displayName || '',
+      role: 'pending',            // <-- rôle par défaut
+      createdAt: serverTimestamp(),
+      active: true
+    });
+    snap = await getDoc(uref);
+  }
+
+  // 2) Vérifs statut / rôle courant
+  const d = snap.data();
+  if (d.active === false) { alert('Compte désactivé.'); await signOut(auth); return; }
+  currentRole = d.role || 'pending';
+
+  // 3) UI
+  $('#user-email').textContent = currentUser.email || '';
+  $('#role-badge').textContent = currentRole || '';
+  show();
+  buildTabs();
+  navigateTo(defaultRoute());      // ira sur 'pending' si pas encore attribué
+
+  // 4) Essaye de synchroniser un rôle pré-attribué via 'directory'
+  try { await syncRoleFromDirectory(); } catch (_) {}
+});
+
 
   // Routing based on role
 const routesByRole = {
@@ -567,18 +582,26 @@ function renderPending(host){
   /****************** ROLE SYNC ********************/
   // Optionnel : quand l'utilisateur se connecte, on synchronise son rôle à partir
   // de la collection 'directory' gérée par l'admin (clé = email).
-  async function syncRoleFromDirectory(){
-    if(!currentUser) return;
-    const key = (currentUser.email||'').toLowerCase().replaceAll('.', '·');
-    const entry = await getDoc(doc(db,'directory',key));
-    if(entry.exists()){
+async function syncRoleFromDirectory(){
+  try {
+    if (!currentUser) return;
+    const key = (currentUser.email || '').toLowerCase().replaceAll('.', '·');
+    const entry = await getDoc(doc(db, 'directory', key));
+    if (entry.exists()) {
       const role = entry.data().role;
-      if(role && role!==currentRole){
-        await updateDoc(doc(db,'users', currentUser.uid), { role });
-        currentRole = role; buildTabs(); navigateTo(defaultRoute());
+      if (role && role !== currentRole) {
+        await updateDoc(doc(db, 'users', currentUser.uid), { role });
+        currentRole = role;
+        $('#role-badge').textContent = currentRole;
+        buildTabs();
+        navigateTo(defaultRoute());
       }
     }
+  } catch (e) {
+    console.warn('Directory read denied:', e.message);
   }
+}
+
   // run at start of each session
   setTimeout(syncRoleFromDirectory, 1000);
 
