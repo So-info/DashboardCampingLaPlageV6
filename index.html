@@ -260,6 +260,15 @@ header .left{display:flex;align-items:center;gap:10px}
   background:#fff;border-radius:12px;margin-bottom:10px;font-weight:800}
 .menu .menu-item.active{background:var(--brand);border-color:var(--brand);color:#fff}
 .drawer-bottom{padding:12px;border-top:1px solid #eaeef5}
+/* ---- Location picker ---- */
+.loc-list{display:grid;gap:10px}
+.loc-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.loc-name{font-weight:800}
+.loc-ctrls{display:flex;align-items:center;gap:8px}
+.loc-qty{
+  min-width:36px;text-align:center;padding:6px 10px;border-radius:999px;
+  background:#f1f5f9;border:1px solid #e6ebf2;font-weight:900;
+}
 
   </style>
 </head>
@@ -330,9 +339,11 @@ header .left{display:flex;align-items:center;gap:10px}
       <div class="row">
         <div class="col">
           <label>Type</label>
-          <select id="rec-type">
-            <option value="technique">Technique</option>
-          </select>
+<select id="rec-type">
+  <option value="technique">Technique</option>
+  <option value="location">Location</option>
+</select>
+
         </div>
         <div class="col">
           <label>Priorité</label>
@@ -365,6 +376,12 @@ header .left{display:flex;align-items:center;gap:10px}
         </div>
       </div>
 <div class="actions-right" style="margin-top:12px">
+    <!-- Panneau Location (affiché seulement si Type=location) -->
+<div id="rec-loc" class="loc card hidden" style="margin-top:10px">
+  <div class="section-title">Location</div>
+  <div id="loc-list" class="loc-list"></div>
+</div>
+
   <button id="rec-create" class="btn btn-primary" style="min-width:120px">Créer</button>
 </div>
 
@@ -512,7 +529,8 @@ const [{ initializeApp },
          signInWithPopup, signInWithRedirect, getRedirectResult,
          setPersistence, browserLocalPersistence, inMemoryPersistence,
          signOut },
-       { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp }
+{ getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, where, orderBy, serverTimestamp, increment }
 ] = await Promise.all([
   import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js'),
   import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'),
@@ -631,11 +649,11 @@ onAuthStateChanged(auth, async (user) => {
 
   // Routing based on role
 const routesByRole = {
-  admin: ['reception','technique','menage','inventory-tech','inventory-menage','admin'],
-  reception: ['reception'],
+  admin:     ['reception','technique','menage','inventory-tech','inventory-menage','inventory-location','admin'],
+  reception: ['reception','inventory-location'],
   technique: ['technique','inventory-tech'],
-  menage: ['menage','inventory-menage'],
-  pending: ['pending']   // nouveau rôle
+  menage:    ['menage','inventory-menage'],
+  pending:   ['pending']
 };
 
 const labels = {
@@ -645,8 +663,10 @@ const labels = {
   'admin':'Administration',
   'inventory-tech':'Inventaire (Technique)',
   'inventory-menage':'Inventaire (Ménage)',
+  'inventory-location':'Inventaire (Location)',
   'pending':"En attente d'attribution"
 };
+
 
   const defaultRoute = ()=> routesByRole[currentRole]?.[0] || 'reception';
 
@@ -701,6 +721,8 @@ async function navigateTo(route){
   else if(route==='inventory-tech')  renderInventory(host, 'inventory_tech');
   else if(route==='inventory-menage')renderInventory(host, 'inventory_menage');
   else if(route==='pending')         renderPending(host);    // ✅ manquait
+  else if(route==='inventory-location') renderInventory(host, 'inventory_location');
+
 
   location.hash = '#'+route;
 }
@@ -708,44 +730,120 @@ async function navigateTo(route){
 
 
   /*************** RECEPTION (create interventions) ***************/
-  function renderReception(host){
-    host.appendChild(document.importNode($('#tpl-reception').content,true));
-    // pill switches
-    $$('.pill-switch', host).forEach(sw=>{
-      sw.addEventListener('click', (e)=>{
-        if(e.target.tagName!=='BUTTON') return;
-        $$('.pill-switch button', sw).forEach(b=>b.classList.remove('on'));
-        e.target.classList.add('on');
-        sw.dataset.value = e.target.dataset.v;
-      });
-      sw.dataset.value = 'oui';
+function renderReception(host){
+  host.appendChild(document.importNode($('#tpl-reception').content,true));
+
+  // pill switches
+  $$('.pill-switch', host).forEach(sw=>{
+    sw.addEventListener('click', (e)=>{
+      if(e.target.tagName!=='BUTTON') return;
+      $$('.pill-switch button', sw).forEach(b=>b.classList.remove('on'));
+      e.target.classList.add('on');
+      sw.dataset.value = e.target.dataset.v;
     });
+    sw.dataset.value = 'oui';
+  });
 
-    $('#rec-create', host).addEventListener('click', async ()=>{
-      const payload = {
-        type: $('#rec-type', host).value,
-        priority: $('#rec-priority', host).value,
-        mobilhome: $('#rec-mh', host).value.trim(),
-        details: $('#rec-detail', host).value.trim(),
-        clientsPresent: $('[data-target="rec-clients"]', host).dataset.value==='oui',
-        autorise: $('[data-target="rec-autorise"]', host).dataset.value==='oui',
-        status: 'a_faire',
-        createdBy: currentUser.uid,
-        createdByEmail: currentUser.email,
-        createdAt: serverTimestamp(),
-        doneBy: null,
-      };
-      if(!payload.mobilhome){ alert('N° Mobilhome requis.'); return; }
-      try {
-        await addDoc(collection(db,'interventions'), payload);
-        $('#rec-mh', host).value=''; $('#rec-detail', host).value='';
-      }catch(e){ alert('Erreur: '+e.message); }
+  // ----- Location picker -----
+  const RENT_ITEMS = [
+    'Plancha (Petite)','Plancha (Grande)','Lit bébé','Chaise bébé','TV','Ventilateur'
+  ];
+  const locBox = $('#rec-loc', host);
+  const locList = $('#loc-list', host);
+  const typeSel = $('#rec-type', host);
+  const selected = Object.fromEntries(RENT_ITEMS.map(n=>[n,0]));
+
+  // construit l'UI des lignes
+  function buildLocList(){
+    locList.innerHTML='';
+    RENT_ITEMS.forEach(name=>{
+      const row = document.createElement('div');
+      row.className='loc-row';
+      row.innerHTML = `
+        <div class="loc-name">${escapeHtml(name)}</div>
+        <div class="loc-ctrls">
+          <button class="btn btn-outline btn-sm" data-a="minus" data-name="${name}">–1</button>
+          <span class="loc-qty" data-q="${name}">0</span>
+          <button class="btn btn-outline btn-sm" data-a="plus" data-name="${name}">+1</button>
+        </div>
+      `;
+      locList.appendChild(row);
     });
-
-    const kanban = $('#rec-kanban', host);
-mountInterventionsKanban(kanban, true, host);
-
   }
+  buildLocList();
+
+  // show/hide selon le type
+  function toggleLoc(){
+    const isLoc = typeSel.value === 'location';
+    locBox.classList.toggle('hidden', !isLoc);
+    if(!isLoc){
+      Object.keys(selected).forEach(k=>selected[k]=0);
+      $$('.loc-qty', host).forEach(e=> e.textContent='0');
+    }
+  }
+  typeSel.addEventListener('change', toggleLoc);
+  toggleLoc();
+
+  // handlers +/-
+  locList.addEventListener('click', (e)=>{
+    const a = e.target?.dataset?.a; if(!a) return;
+    const name = e.target.dataset.name;
+    if(a==='plus') selected[name] += 1;
+    if(a==='minus') selected[name] = Math.max(0, selected[name]-1);
+    $(`.loc-qty[data-q="${CSS.escape(name)}"]`, host).textContent = String(selected[name]);
+  });
+
+  // ----- Création intervention -----
+  $('#rec-create', host).addEventListener('click', async ()=>{
+    const isLoc = typeSel.value === 'location';
+    const payload = {
+      type: typeSel.value,
+      priority: $('#rec-priority', host).value,
+      mobilhome: $('#rec-mh', host).value.trim(),
+      details: $('#rec-detail', host).value.trim(),
+      clientsPresent: $('[data-target="rec-clients"]', host).dataset.value==='oui',
+      autorise: $('[data-target="rec-autorise"]', host).dataset.value==='oui',
+      status: 'a_faire',
+      createdBy: currentUser.uid,
+      createdByEmail: currentUser.email,
+      createdAt: serverTimestamp(),
+      doneBy: null,
+    };
+    if(!payload.mobilhome){ alert('N° Mobilhome requis.'); return; }
+
+    // si location : au moins un article
+    let items=[];
+    if(isLoc){
+      items = Object.entries(selected).filter(([,q])=>q>0).map(([name,qty])=>({name,qty}));
+      if(items.length===0){ alert('Sélectionnez au moins un objet à louer.'); return; }
+      payload.items = items;
+      payload.status = 'termine'; // on ne l’envoie pas aux techniciens
+    }
+
+    try {
+      await addDoc(collection(db,'interventions'), payload);
+
+      // MAJ inventaire location en direct
+      if(isLoc){
+        for(const it of items){
+          const id = slug(it.name);
+          await setDoc(doc(db,'inventory_location', id),
+            { name: it.name, qty: increment(-it.qty) },
+            { merge:true }
+          );
+        }
+      }
+
+      // reset formulaire
+      $('#rec-mh', host).value=''; $('#rec-detail', host).value='';
+      if(isLoc){ Object.keys(selected).forEach(k=>selected[k]=0); $$('.loc-qty', host).forEach(e=>e.textContent='0'); }
+    }catch(e){ alert('Erreur: '+e.message); }
+  });
+
+  const kanban = $('#rec-kanban', host);
+  mountInterventionsKanban(kanban, true, host);
+}
+
 
   /*************** TECHNIQUE (kanban + validate) ***************/
   function renderTechnique(host){
@@ -777,7 +875,6 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
                <div class="col-body"></div>
              </div>`).join('');
 
-  // --- Filtres (dans le host du template affiché)
   const el = id => controlsRoot ? controlsRoot.querySelector('#'+id) : null;
   const parseFilter = () => ({
     q: (el('flt-search')?.value || '').trim().toLowerCase(),
@@ -788,7 +885,6 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
   attach('flt-search','input'); attach('flt-status','change'); attach('flt-priority','change');
   const clearBtn = el('flt-clear'); if(clearBtn){ clearBtn.addEventListener('click', ()=>{ if(el('flt-search')) el('flt-search').value=''; if(el('flt-status')) el('flt-status').value=''; if(el('flt-priority')) el('flt-priority').value=''; apply(); }); }
 
-  // --- Cache snapshot + rendu filtré
   let docs = [];
   const qRef = query(collection(db,'interventions'), orderBy('createdAt','desc'));
   const unsub = onSnapshot(qRef, (snap)=>{
@@ -799,38 +895,31 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
 
   function apply(){
     const filter = parseFilter();
-    // reset colonnes
     const bodies = {};
     $$('.kanban-col', container).forEach(col=>{
       $('.col-body', col).innerHTML = '';
       $('.col-count', col).textContent = '0';
       bodies[col.dataset.col] = $('.col-body', col);
     });
-
     const counts = { a_faire:0, en_cours:0, termine:0 };
 
     docs.forEach(item=>{
       const d = item.data;
 
-      // --- filtrage
+      // ⚠️ on ne montre pas les interventions de type "location" dans le kanban
+      if ((d.type||'').toLowerCase() === 'location') return;
+
       if(filter.prio && (d.priority||'').toLowerCase() !== filter.prio) return;
       if(filter.status && (d.status||'a_faire') !== filter.status) return;
       if(filter.q){
-        const hay = [
-          d.mobilhome||'',
-          d.details||'',
-          d.createdByEmail||'',
-          (d.priority||'')
-        ].join(' ').toLowerCase();
+        const hay = [d.mobilhome||'', d.details||'', d.createdByEmail||'', (d.priority||'')].join(' ').toLowerCase();
         if(!hay.includes(filter.q)) return;
       }
 
-      // --- carte
       const pr = (d.priority||'normale').toLowerCase();
       const prClass = pr==='urgente' ? 'urgent' : (pr==='haute' ? 'high' : 'normal');
 
-      const card = document.createElement('div');
-      card.className='ticket';
+      const card = document.createElement('div'); card.className='ticket';
       card.innerHTML = `
         <div class="t-top">
           <div class="t-title">MH <b>${escapeHtml(d.mobilhome||'?')}</b></div>
@@ -848,8 +937,6 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
             <button class="btn btn-success" data-act="to_termine">Terminer</button>
           </div>` : '' }
       `;
-
-      // actions
       card.addEventListener('click', async (e)=>{
         const act = e.target?.dataset?.act; if(!act) return;
         const ref = doc(db,'interventions', item.id);
@@ -859,14 +946,12 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
         }catch(err){ alert(err.message); }
       });
 
-      // append + compteur
       const key = (d.status||'a_faire');
       const mount = bodies[key] || bodies['a_faire'];
       mount.appendChild(card);
       counts[key] += 1;
     });
 
-    // maj compteurs
     Object.entries(counts).forEach(([k,v])=>{
       const badge = $(`.kanban-col[data-col="${k}"] .col-count`, container);
       if(badge) badge.textContent = String(v);
@@ -998,6 +1083,7 @@ function renderInventory(host, collectionName){
   });
 }
 
+function slug(s=''){ return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
 
   /****************** UTIL ************************/ 
   function escapeHtml(x=''){ return x.replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
