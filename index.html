@@ -174,14 +174,22 @@ tr td:last-child{border-radius:0 14px 14px 0}
 .kanban-col h3{display:flex;align-items:center;justify-content:space-between}
 
 /* ===== Hamburger (beau + animé) ===== */
+/* ===== Hamburger (carré partout, iOS inclus) ===== */
 header .left{display:flex;align-items:center;gap:10px}
+
 .hamburger{
-  width:44px;height:44px;padding:0;position:relative;
-  border-radius:6px;border:1px solid #e6ebf2;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:44px; height:44px; aspect-ratio:1 / 1;   /* carré forcé */
+  padding:0; box-sizing:border-box;
+  -webkit-appearance:none; appearance:none;       /* annule style iOS */
+  border:1px solid #e6ebf2;
+  border-radius:8px;                               /* mets 0 pour angles droits */
   background:linear-gradient(180deg,#ffffff,#f8fbff);
   box-shadow:var(--shadow);
+  -webkit-tap-highlight-color: transparent;
 }
 .hamburger:active{transform:translateY(1px)}
+
 .hamburger span{
   position:absolute; left:11px; right:11px; height:3px;
   background:#0b1220; border-radius:3px;
@@ -196,6 +204,7 @@ header .left{display:flex;align-items:center;gap:10px}
 .hamburger[aria-expanded="true"] span:nth-child(1){ top:20px; transform:rotate(45deg); }
 .hamburger[aria-expanded="true"] span:nth-child(2){ opacity:0; transform:scaleX(0.5); }
 .hamburger[aria-expanded="true"] span:nth-child(3){ top:20px; transform:rotate(-45deg); }
+
 
 .drawer{position:fixed;inset:0;pointer-events:none;z-index:50}
 .drawer-backdrop{position:absolute;inset:0;background:rgba(2,6,23,.35);opacity:0;transition:opacity .2s}
@@ -981,4 +990,3 @@ async function syncRoleFromDirectory(){
 </script>
 </body>
 </html>
-
