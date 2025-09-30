@@ -386,7 +386,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyD3UqR7G6LJxQOft046GVuvalq61Nmga80",
   authDomain: "dashboardv6-41aba.firebaseapp.com",
   projectId: "dashboardv6-41aba",
-  storageBucket: "dashboardv6-41aba.firebasestorage.app",
+  storageBucket: "dashboardv6-41aba.appspot.com",
   messagingSenderId: "837982707095",
   appId: "1:837982707095:web:efd87ab0b9dca97f51b8d2"
 };
@@ -470,22 +470,44 @@ onAuthStateChanged(auth, async (user) => {
 
   currentUser = user;
 
-  // 1) Récupère ou crée le profil avec rôle 'pending' au 1er login
   const uref = doc(db, 'users', user.uid);
-  let snap = await getDoc(uref);
+  let snap;
+
+  // 1) Essaye de lire le profil; si ça échoue, crée-le.
+  try {
+    snap = await getDoc(uref);
+  } catch (e) {
+    try {
+      await setDoc(uref, {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || '',
+        role: 'pending',
+        createdAt: serverTimestamp(),
+        active: true
+      }, { merge:true });
+      snap = await getDoc(uref);
+    } catch (e2) {
+      console.error('Profile read/create failed:', e2);
+      alert("Problème d'accès au profil. Vérifie les règles Firestore.");
+      hideApp();
+      return;
+    }
+  }
+
   if (!snap.exists()) {
     await setDoc(uref, {
       uid: user.uid,
       email: user.email,
       name: user.displayName || '',
-      role: 'pending',            // <-- rôle par défaut
+      role: 'pending',
       createdAt: serverTimestamp(),
       active: true
     });
     snap = await getDoc(uref);
   }
 
-  // 2) Vérifs statut / rôle courant
+  // 2) Statut + rôle
   const d = snap.data();
   if (d.active === false) { alert('Compte désactivé.'); await signOut(auth); return; }
   currentRole = d.role || 'pending';
@@ -495,11 +517,12 @@ onAuthStateChanged(auth, async (user) => {
   $('#role-badge').textContent = currentRole || '';
   show();
   buildTabs();
-  navigateTo(defaultRoute());      // ira sur 'pending' si pas encore attribué
+  navigateTo(defaultRoute());
 
-  // 4) Essaye de synchroniser un rôle pré-attribué via 'directory'
+  // 4) Synchro éventuelle depuis 'directory'
   try { await syncRoleFromDirectory(); } catch (_) {}
 });
+
 
 
   // Routing based on role
@@ -540,19 +563,23 @@ const labels = {
 
   window.addEventListener('hashchange', ()=> navigateTo(location.hash.replace('#','')));
 
-  async function navigateTo(route){
-    if(!route){ route = defaultRoute(); }
-    setActiveTab(route);
-    const host = $('#route-container');
-    host.innerHTML='';
-    if(route==='reception') renderReception(host);
-    if(route==='technique') renderTechnique(host);
-    if(route==='menage') renderMenage(host);
-    if(route==='admin') renderAdmin(host);
-    if(route==='inventory-tech') renderInventory(host, 'inventory_tech');
-    if(route==='inventory-menage') renderInventory(host, 'inventory_menage');
-    location.hash = '#'+route;
-  }
+async function navigateTo(route){
+  if(!route){ route = defaultRoute(); }
+  setActiveTab(route);
+  const host = $('#route-container');
+  host.innerHTML='';
+
+  if(route==='reception')       renderReception(host);
+  else if(route==='technique')  renderTechnique(host);
+  else if(route==='menage')     renderMenage(host);
+  else if(route==='admin')      renderAdmin(host);
+  else if(route==='inventory-tech')    renderInventory(host, 'inventory_tech');
+  else if(route==='inventory-menage')  renderInventory(host, 'inventory_menage');
+  else if(route==='pending')    renderPending(host);   // ✅ manquait
+
+  location.hash = '#'+route;
+}
+
 
   /*************** RECEPTION (create interventions) ***************/
   function renderReception(host){
