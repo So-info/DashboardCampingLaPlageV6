@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>La Plage – Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230093ff'/><text x='50' y='60' font-size='54' text-anchor='middle' fill='white'>L</text></svg>">
   <style>
@@ -288,6 +289,10 @@ header .left{display:flex;align-items:center;gap:10px}
   min-width:34px; text-align:center; padding:6px 10px; border-radius:999px;
   background:#eef2ff; color:#3730a3; font-weight:900; border:1px solid #dbeafe;
 }
+/* Empêche le double-tap zoom sur les éléments interactifs */
+html, body { touch-action: manipulation; }
+button, a, input, select, textarea,
+.menu-item, .pill-switch button, .hamburger { touch-action: manipulation; }
 
 
   </style>
