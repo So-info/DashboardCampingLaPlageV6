@@ -1,4 +1,4 @@
- <!doctype html>
+<!doctype html>
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
@@ -569,36 +569,37 @@ const firebaseConfig = {
   messagingSenderId: "837982707095",
   appId: "1:837982707095:web:efd87ab0b9dca97f51b8d2"
 };
-const { getMessaging, getToken, onMessage } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js');
-const messaging = getMessaging(app);
 
-  // Charger Firebase modules dynamiquement pour rester dans un seul fichier
+// Charger Firebase modules dynamiquement pour rester dans un seul fichier
 const [{ initializeApp },
        { getAuth, onAuthStateChanged,
          GoogleAuthProvider,
          signInWithPopup, signInWithRedirect, getRedirectResult,
          setPersistence, browserLocalPersistence, inMemoryPersistence,
          signOut },
-{ getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc,
-  onSnapshot, query, where, orderBy, serverTimestamp, increment }
+       { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc,
+         onSnapshot, query, where, orderBy, serverTimestamp, increment }
 ] = await Promise.all([
   import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js'),
   import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'),
   import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js'),
 ]);
 
+// 👉 Initialise Firebase
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-
-// Persistance durable si possible (sinon mémoire)
+// Persistance durable si possible
 try { await setPersistence(auth, browserLocalPersistence); }
 catch { await setPersistence(auth, inMemoryPersistence); }
 
 // Si on revient d'un redirect, finalise la connexion (sinon no-op)
 try { await getRedirectResult(auth); } catch(e){ console.warn('redirect result:', e?.message||e); }
+// Import Firebase Messaging
+const { getMessaging, getToken, onMessage } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js");
+const messaging = getMessaging(app);
 
-  const db = getFirestore(app);
 
   // DOM helpers
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -670,26 +671,27 @@ onAuthStateChanged(auth, async (user) => {
 
   currentRole = d.role || 'pending';
 
-  // ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
-  try {
-    const token = await getToken(messaging, {
-      vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc" // récupère-la dans Firebase Console > Paramètres du projet > Cloud Messaging
-    });
+// ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
+try {
+  const token = await getToken(messaging, {
+    vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc" // ta clé publique VAPID
+  });
 
-    if (token) {
-      // On stocke le token avec comme ID = le token lui-même
-      await setDoc(doc(db, "fcmTokens", token), {
-        userId: user.uid,
-        role: currentRole,
-        createdAt: serverTimestamp()
-      });
-      console.log("✅ Token FCM enregistré :", token);
-    } else {
-      console.warn("⚠️ Aucun token FCM obtenu (permission refusée ?)");
-    }
-  } catch (err) {
-    console.error("❌ Erreur lors de la récupération du token FCM :", err);
+  if (token) {
+    // On stocke le token avec comme ID = le token lui-même
+    await setDoc(doc(db, "fcmTokens", token), {
+      userId: user.uid,
+      role: currentRole,
+      createdAt: serverTimestamp()
+    });
+    console.log("✅ Token FCM enregistré :", token);
+  } else {
+    console.warn("⚠️ Aucun token FCM obtenu (permission refusée ?)");
   }
+} catch (err) {
+  console.error("❌ Erreur lors de la récupération du token FCM :", err);
+}
+
   // ==========================================================================
 
   // --- UI ---
@@ -1242,4 +1244,3 @@ async function syncRoleFromDirectory(){
 </script>
 </body>
 </html>
-
