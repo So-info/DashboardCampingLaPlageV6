@@ -432,36 +432,26 @@ try { await getRedirectResult(auth); } catch(e){ console.warn('redirect result:'
   // --- Auth UI ---
 $('#btn-google').addEventListener('click', async ()=>{
   const provider = new GoogleAuthProvider();
-
-  // iOS ou sessionStorage indisponible → tenter POPUP d'abord, sinon fallback REDIRECT
-  const sessOK = storageAvailable('sessionStorage');
-
   try {
-    // 1) Essai popup (meilleur UX; marche sur Safari récent si déclenché par clic)
-    if (!isIOS && sessOK) {
-      await signInWithPopup(auth, provider);
-      return;
-    }
-
-    // 2) Fallback redirect (marche mieux dans certains navigateurs mobiles)
-    await signInWithRedirect(auth, provider);
+    // Toujours essayer POPUP en premier (marche aussi sur iOS récent quand déclenché par clic)
+    await signInWithPopup(auth, provider);
   } catch(e){
-    // 3) Si le redirect échoue à cause de sessionStorage, on informe proprement
-    const msg = (e && (e.message||'')).toLowerCase();
-    if (msg.includes('sessionstorage') || msg.includes('initial state')) {
-      alert(
-        "Impossible d'initialiser la connexion sur ce navigateur.\n\n" +
-        "Essayez l'une des options suivantes :\n" +
-        "• Ouvrir le site dans Safari (pas dans le navigateur intégré d'une app)\n" +
-        "• Quitter la navigation privée\n" +
-        "• Réactiver les cookies (Réglages > Safari > Bloquer tous les cookies = désactivé)\n" +
-        "• Ou utiliser Chrome/Firefox."
-      );
+    // Fallback si popup bloqué / non supporté
+    const code = e?.code || '';
+    if (code === 'auth/popup-blocked' ||
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/operation-not-supported-in-this-environment') {
+      try {
+        await signInWithRedirect(auth, provider);
+      } catch(e2){
+        alert('Connexion impossible: ' + (e2?.message || e2));
+      }
     } else {
-      alert('Connexion impossible: ' + e.message);
+      alert('Connexion impossible: ' + (e?.message || e));
     }
   }
 });
+
 
   $('#btn-logout').addEventListener('click', ()=> signOut(auth));
 
@@ -569,16 +559,17 @@ async function navigateTo(route){
   const host = $('#route-container');
   host.innerHTML='';
 
-  if(route==='reception')       renderReception(host);
-  else if(route==='technique')  renderTechnique(host);
-  else if(route==='menage')     renderMenage(host);
-  else if(route==='admin')      renderAdmin(host);
-  else if(route==='inventory-tech')    renderInventory(host, 'inventory_tech');
-  else if(route==='inventory-menage')  renderInventory(host, 'inventory_menage');
-  else if(route==='pending')    renderPending(host);   // ✅ manquait
+  if(route==='reception')            renderReception(host);
+  else if(route==='technique')       renderTechnique(host);
+  else if(route==='menage')          renderMenage(host);
+  else if(route==='admin')           renderAdmin(host);
+  else if(route==='inventory-tech')  renderInventory(host, 'inventory_tech');
+  else if(route==='inventory-menage')renderInventory(host, 'inventory_menage');
+  else if(route==='pending')         renderPending(host);    // ✅ manquait
 
   location.hash = '#'+route;
 }
+
 
 
   /*************** RECEPTION (create interventions) ***************/
