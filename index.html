@@ -178,6 +178,22 @@
     <p class="muted">(en attente de réception)</p>
   </div>
 </template>
+<template id="tpl-pending">
+  <div class="center" style="min-height:60dvh">
+    <div class="card login-card" style="max-width:480px">
+      <div class="logo">
+        <img src="logo-camping-la-plage.png" alt="La Plage" style="height:60px;object-fit:contain"/>
+      </div>
+      <h1>Compte en attente</h1>
+      <p class="muted">
+        Votre compte a bien été créé mais n'a pas encore de rôle.<br/>
+        Merci de contacter un administrateur pour vous attribuer :<br/>
+        <b>Réception</b>, <b>Technique</b> ou <b>Ménage</b>.
+      </p>
+      <button id="btn-logout2" class="btn btn-outline" style="width:100%">Se déconnecter</button>
+    </div>
+  </div>
+</template>
 
 <template id="tpl-admin">
   <div class="grid">
@@ -292,16 +308,24 @@ const firebaseConfig = {
   });
 
   // Routing based on role
-  const routesByRole = {
-    admin: ['reception','technique','menage','inventory-tech','inventory-menage','admin'],
-    reception: ['reception'],
-    technique: ['technique','inventory-tech'],
-    menage: ['menage','inventory-menage']
-  };
-  const labels = {
-    'reception':'Réception', 'technique':'Technique', 'menage':'Ménage', 'admin':'Administration',
-    'inventory-tech':'Inventaire (Technique)', 'inventory-menage':'Inventaire (Ménage)'
-  };
+const routesByRole = {
+  admin: ['reception','technique','menage','inventory-tech','inventory-menage','admin'],
+  reception: ['reception'],
+  technique: ['technique','inventory-tech'],
+  menage: ['menage','inventory-menage'],
+  pending: ['pending']   // nouveau rôle
+};
+
+const labels = {
+  'reception':'Réception',
+  'technique':'Technique',
+  'menage':'Ménage',
+  'admin':'Administration',
+  'inventory-tech':'Inventaire (Technique)',
+  'inventory-menage':'Inventaire (Ménage)',
+  'pending':"En attente d'attribution"
+};
+
   const defaultRoute = ()=> routesByRole[currentRole]?.[0] || 'reception';
 
   function buildTabs(){
@@ -385,6 +409,10 @@ const firebaseConfig = {
   function renderMenage(host){
     host.appendChild(document.importNode($('#tpl-menage').content,true));
   }
+function renderPending(host){
+  host.appendChild(document.importNode($('#tpl-pending').content,true));
+  $('#btn-logout2', host).addEventListener('click', ()=> signOut(auth));
+}
 
   // Shared kanban renderer for interventions
   function mountInterventionsKanban(container, allowActions){
