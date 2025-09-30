@@ -831,28 +831,31 @@ function renderReception(host){
   }
 
   // --- Rendu de la grille
-  function renderGrid(){
-    grid.innerHTML = '';
-    RENT_ITEMS.forEach(it=>{
-      const stock = avail[it.name] ?? 0;
-      const q = sel[it.name] || 0;
-      const el = document.createElement('div');
-      el.className = 'loc-item';
-      el.innerHTML = `
-        <div class="loc-head">
-          <div class="loc-name">${it.icon} ${escapeHtml(it.name)}</div>
-          <span class="loc-stock" data-stock="${CSS.escape(it.name)}">${stock} dispo</span>
-        </div>
-        <div class="stepper">
-          <button class="btn btn-outline btn-sm" data-a="minus" data-name="${it.name}">–1</button>
-          <span class="qty" data-qty="${CSS.escape(it.name)}">${q}</span>
-          <button class="btn btn-outline btn-sm" data-a="plus"  data-name="${it.name}">+1</button>
-        </div>
-      `;
-      grid.appendChild(el);
-    });
-    updateTotal();
-  }
+function renderGrid(){
+  grid.innerHTML = '';
+  RENT_ITEMS.forEach(it=>{
+    const stock = avail[it.name] ?? 0;
+    const q = sel[it.name] || 0;
+    const el = document.createElement('div');
+    el.className = 'loc-item';
+    el.innerHTML = `
+      <div class="loc-head">
+        <div class="loc-name">${it.icon} ${escapeHtml(it.name)}</div>
+        <!-- ⚠️ ne PAS échapper la valeur stockée dans l'attribut -->
+        <span class="loc-stock" data-stock="${it.name}">${stock} dispo</span>
+      </div>
+      <div class="stepper">
+        <button class="btn btn-outline btn-sm" data-a="minus" data-name="${it.name}">–1</button>
+        <!-- ⚠️ idem ici : on stocke la valeur brute -->
+        <span class="qty" data-qty="${it.name}">${q}</span>
+        <button class="btn btn-outline btn-sm" data-a="plus"  data-name="${it.name}">+1</button>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+  updateTotal();
+}
+
 
   onSnapshot(collection(db,'inventory_location'), (snap)=>{
     avail = {};
