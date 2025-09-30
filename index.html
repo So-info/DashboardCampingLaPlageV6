@@ -685,10 +685,15 @@ onAuthStateChanged(auth, async (user) => {
   currentRole = d.role || 'pending';
 
 // ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
-const token = await getToken(messaging, {
-  vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc",
-  serviceWorkerRegistration: await navigator.serviceWorker.register("/DashboardCampingLaPlageV6/firebase-messaging-sw.js")
-});
+try {
+  // Enregistre le service worker AVANT de demander le token
+  const swReg = await navigator.serviceWorker.register("/DashboardCampingLaPlageV6/firebase-messaging-sw.js");
+  console.log("✅ Service worker enregistré :", swReg);
+
+  const token = await getToken(messaging, {
+    vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc",
+    serviceWorkerRegistration: swReg
+  });
 
   if (token) {
     // On stocke le token avec comme ID = le token lui-même
@@ -704,24 +709,7 @@ const token = await getToken(messaging, {
 } catch (err) {
   console.error("❌ Erreur lors de la récupération du token FCM :", err);
 }
-
-  // ==========================================================================
-
-  // --- UI ---
-  $('#user-email').textContent = currentUser.email || '';
-  $('#role-badge').textContent = currentRole || '';
-  show();
-  buildTabs();
-  navigateTo(defaultRoute());
-
-  // --- Synchro éventuelle avec 'directory' ---
-  try {
-    await syncRoleFromDirectory();
-  } catch (_) {}
-});
-
-
-
+// ==========================================================================
 
   // Routing based on role
 const routesByRole = {
