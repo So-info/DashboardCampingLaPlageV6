@@ -173,11 +173,30 @@ tr td:last-child{border-radius:0 14px 14px 0}
 .col-count{font-size:12px;background:#f1f5f9;border:1px solid #e6ebf2;border-radius:999px;padding:4px 8px;min-width:28px;text-align:center}
 .kanban-col h3{display:flex;align-items:center;justify-content:space-between}
 
-/* ===== Hamburger + Drawer ===== */
+/* ===== Hamburger (beau + animé) ===== */
 header .left{display:flex;align-items:center;gap:10px}
-.hamburger{width:44px;height:44px;border-radius:12px;border:1px solid #e6ebf2;background:#fff;
-  display:inline-flex;align-items:center;justify-content:center}
-.hamburger span{display:block;width:20px;height:2px;background:#0b1220;margin:2.5px 0;border-radius:2px}
+.hamburger{
+  width:44px;height:44px;padding:0;position:relative;
+  border-radius:14px;border:1px solid #e6ebf2;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  box-shadow:var(--shadow);
+}
+.hamburger:active{transform:translateY(1px)}
+.hamburger span{
+  position:absolute; left:11px; right:11px; height:3px;
+  background:#0b1220; border-radius:3px;
+  transition:transform .25s ease, opacity .2s ease, top .25s ease, background .2s ease;
+}
+.hamburger span:nth-child(1){ top:14px; }
+.hamburger span:nth-child(2){ top:20px; }
+.hamburger span:nth-child(3){ top:26px; }
+.hamburger:hover span{ background:#0a1f44; }
+
+/* État ouvert -> croix */
+.hamburger[aria-expanded="true"] span:nth-child(1){ top:20px; transform:rotate(45deg); }
+.hamburger[aria-expanded="true"] span:nth-child(2){ opacity:0; transform:scaleX(0.5); }
+.hamburger[aria-expanded="true"] span:nth-child(3){ top:20px; transform:rotate(-45deg); }
+
 .drawer{position:fixed;inset:0;pointer-events:none;z-index:50}
 .drawer-backdrop{position:absolute;inset:0;background:rgba(2,6,23,.35);opacity:0;transition:opacity .2s}
 .drawer-panel{position:absolute;left:0;top:0;bottom:0;width:86vw;max-width:320px;background:#fff;
