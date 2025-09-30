@@ -586,9 +586,22 @@ const [{ initializeApp },
 ]);
 
 // 👉 Initialise Firebase
-const app  = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db   = getFirestore(app);
+const db = getFirestore(app);
+
+// ==================== Service Worker FCM ====================
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/DashboardCampingLaPlageV6/firebase-messaging-sw.js')
+    .then((registration) => {
+      console.log("✅ Service Worker FCM enregistré :", registration.scope);
+    })
+    .catch((err) => {
+      console.error("❌ Erreur Service Worker FCM :", err);
+    });
+}
+// =============================================================
+
 
 // Persistance durable si possible
 try { await setPersistence(auth, browserLocalPersistence); }
