@@ -166,6 +166,13 @@ tr td:last-child{border-radius:0 14px 14px 0}
 
 /* full-width primary button on mobile */
 .actions-right{display:flex;justify-content:flex-end}
+
+/* ==== Filtres & Compteurs ==== */
+.toolrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.toolrow input,.toolrow select{flex:1;min-width:150px}
+.col-count{font-size:12px;background:#f1f5f9;border:1px solid #e6ebf2;border-radius:999px;padding:4px 8px;min-width:28px;text-align:center}
+.kanban-col h3{display:flex;align-items:center;justify-content:space-between}
+
   </style>
 </head>
 <body>
@@ -249,19 +256,57 @@ tr td:last-child{border-radius:0 14px 14px 0}
 
     </div>
 
-    <div class="grid">
-      <div class="section-title">File Techniciens</div>
-      <div class="kanban" id="rec-kanban"></div>
-    </div>
+<div class="grid">
+  <div class="section-title">File Techniciens</div>
+
+  <div class="toolrow">
+    <input id="flt-search" type="text" placeholder="Rechercher (MH, email, détail)">
+    <select id="flt-status">
+      <option value="">Tous statuts</option>
+      <option value="a_faire">À faire</option>
+      <option value="en_cours">En cours</option>
+      <option value="termine">Terminé</option>
+    </select>
+    <select id="flt-priority">
+      <option value="">Toutes priorités</option>
+      <option value="urgente">Urgente</option>
+      <option value="haute">Haute</option>
+      <option value="normale">Normale</option>
+    </select>
+    <button id="flt-clear" class="btn btn-outline">Réinitialiser</button>
+  </div>
+
+  <div class="kanban" id="rec-kanban"></div>
+</div>
+
   </div>
 </template>
 
 <template id="tpl-technique">
   <div class="grid">
     <div class="section-title">Interventions</div>
+
+    <div class="toolrow">
+      <input id="flt-search" type="text" placeholder="Rechercher (MH, email, détail)">
+      <select id="flt-status">
+        <option value="">Tous statuts</option>
+        <option value="a_faire">À faire</option>
+        <option value="en_cours">En cours</option>
+        <option value="termine">Terminé</option>
+      </select>
+      <select id="flt-priority">
+        <option value="">Toutes priorités</option>
+        <option value="urgente">Urgente</option>
+        <option value="haute">Haute</option>
+        <option value="normale">Normale</option>
+      </select>
+      <button id="flt-clear" class="btn btn-outline">Réinitialiser</button>
+    </div>
+
     <div class="kanban" id="tech-kanban"></div>
   </div>
 </template>
+
 
 <template id="tpl-menage">
   <div class="grid">
@@ -500,14 +545,16 @@ const labels = {
     });
 
     const kanban = $('#rec-kanban', host);
-    mountInterventionsKanban(kanban, true); // true => show validate buttons for technicians too
+mountInterventionsKanban(kanban, true, host);
+
   }
 
   /*************** TECHNIQUE (kanban + validate) ***************/
   function renderTechnique(host){
     host.appendChild(document.importNode($('#tpl-technique').content,true));
     const kanban = $('#tech-kanban', host);
-    mountInterventionsKanban(kanban, true);
+mountInterventionsKanban(kanban, true, host);
+
   }
 
   /*************** MENAGE (placeholder) ***************/
@@ -520,21 +567,67 @@ function renderPending(host){
 }
 
   // Shared kanban renderer for interventions
-function mountInterventionsKanban(container, allowActions){
+function mountInterventionsKanban(container, allowActions, controlsRoot){
   const cols = [
     {key:'a_faire', title:'À faire'},
     {key:'en_cours', title:'En cours'},
     {key:'termine', title:'Terminé'},
   ];
   container.innerHTML = cols
-    .map(c=>`<div class="kanban-col" data-col="${c.key}"><h3>${c.title}</h3><div class="col-body"></div></div>`)
-    .join('');
+    .map(c=>`<div class="kanban-col" data-col="${c.key}">
+               <h3>${c.title} <span class="col-count">0</span></h3>
+               <div class="col-body"></div>
+             </div>`).join('');
 
-  const q = query(collection(db,'interventions'), orderBy('createdAt','desc'));
-  const unsub = onSnapshot(q, (snap)=>{
-    $$('.kanban-col .col-body', container).forEach(b=> b.innerHTML='');
-    snap.forEach(docSnap=>{
-      const d = docSnap.data();
+  // --- Filtres (dans le host du template affiché)
+  const el = id => controlsRoot ? controlsRoot.querySelector('#'+id) : null;
+  const parseFilter = () => ({
+    q: (el('flt-search')?.value || '').trim().toLowerCase(),
+    status: el('flt-status')?.value || '',
+    prio: (el('flt-priority')?.value || '')
+  });
+  const attach = (id, type='input') => { const x=el(id); if(x){ x.addEventListener(type, apply); } };
+  attach('flt-search','input'); attach('flt-status','change'); attach('flt-priority','change');
+  const clearBtn = el('flt-clear'); if(clearBtn){ clearBtn.addEventListener('click', ()=>{ if(el('flt-search')) el('flt-search').value=''; if(el('flt-status')) el('flt-status').value=''; if(el('flt-priority')) el('flt-priority').value=''; apply(); }); }
+
+  // --- Cache snapshot + rendu filtré
+  let docs = [];
+  const qRef = query(collection(db,'interventions'), orderBy('createdAt','desc'));
+  const unsub = onSnapshot(qRef, (snap)=>{
+    docs = [];
+    snap.forEach(ds=> docs.push({ id: ds.id, data: ds.data() }));
+    apply();
+  });
+
+  function apply(){
+    const filter = parseFilter();
+    // reset colonnes
+    const bodies = {};
+    $$('.kanban-col', container).forEach(col=>{
+      $('.col-body', col).innerHTML = '';
+      $('.col-count', col).textContent = '0';
+      bodies[col.dataset.col] = $('.col-body', col);
+    });
+
+    const counts = { a_faire:0, en_cours:0, termine:0 };
+
+    docs.forEach(item=>{
+      const d = item.data;
+
+      // --- filtrage
+      if(filter.prio && (d.priority||'').toLowerCase() !== filter.prio) return;
+      if(filter.status && (d.status||'a_faire') !== filter.status) return;
+      if(filter.q){
+        const hay = [
+          d.mobilhome||'',
+          d.details||'',
+          d.createdByEmail||'',
+          (d.priority||'')
+        ].join(' ').toLowerCase();
+        if(!hay.includes(filter.q)) return;
+      }
+
+      // --- carte
       const pr = (d.priority||'normale').toLowerCase();
       const prClass = pr==='urgente' ? 'urgent' : (pr==='haute' ? 'high' : 'normal');
 
@@ -545,16 +638,12 @@ function mountInterventionsKanban(container, allowActions){
           <div class="t-title">MH <b>${escapeHtml(d.mobilhome||'?')}</b></div>
           <span class="chip pr ${prClass}">${(d.priority||'normale').toUpperCase()}</span>
         </div>
-
         ${d.details?`<div class="t-details">${escapeHtml(d.details)}</div>`:''}
-
         <div class="t-chips">
           <span class="chip ${d.clientsPresent?'green':'red'}">Clients ${d.clientsPresent?'présents':'absents'}</span>
           <span class="chip ${d.autorise?'green':'red'}">${d.autorise?'Autorisé':'Interdit'}</span>
         </div>
-
         <div class="meta">${escapeHtml(d.createdByEmail||'')}</div>
-
         ${allowActions && (currentRole==='technique' || currentRole==='admin') ? `
           <div class="ticket-actions">
             <button class="btn btn-outline" data-act="to_en_cours">En cours</button>
@@ -562,23 +651,33 @@ function mountInterventionsKanban(container, allowActions){
           </div>` : '' }
       `;
 
+      // actions
       card.addEventListener('click', async (e)=>{
         const act = e.target?.dataset?.act; if(!act) return;
-        const ref = doc(db,'interventions', docSnap.id);
+        const ref = doc(db,'interventions', item.id);
         try{
           if(act==='to_en_cours') await updateDoc(ref, { status:'en_cours' });
           if(act==='to_termine') await updateDoc(ref, { status:'termine', doneBy: currentUser.email, doneAt:serverTimestamp() });
         }catch(err){ alert(err.message); }
       });
 
-      const mount = $(`.kanban-col[data-col="${d.status||'a_faire'}"] .col-body`, container)
-                 || $(`.kanban-col[data-col="a_faire"] .col-body`, container);
+      // append + compteur
+      const key = (d.status||'a_faire');
+      const mount = bodies[key] || bodies['a_faire'];
       mount.appendChild(card);
+      counts[key] += 1;
     });
-  });
+
+    // maj compteurs
+    Object.entries(counts).forEach(([k,v])=>{
+      const badge = $(`.kanban-col[data-col="${k}"] .col-count`, container);
+      if(badge) badge.textContent = String(v);
+    });
+  }
 
   container._unsub = unsub;
 }
+
 
 
   /********************* ADMIN ************************/ 
