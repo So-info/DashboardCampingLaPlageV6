@@ -41,11 +41,45 @@ header{
   border-bottom:1px solid #eaeef5
 }
 .role-badge{background:#eaf2ff;border-radius:999px;padding:4px 10px;font-size:12px;color:#185adb}
-.btn{appearance:none;border:0;border-radius:14px;padding:14px 16px;font-weight:800;font-size:16px}
-.btn-primary{background:var(--brand);color:#fff;box-shadow:var(--shadow)}
-.btn-primary:active{transform:translateY(1px)}
-.btn-outline{background:#fff;border:1px solid #e6ebf2;color:var(--text)}
-.btn-danger{background:var(--danger);color:#fff}
+/* ===== Buttons (compact + premium) ===== */
+.btn{
+  --h:40px; --rad:12px; --padx:14px;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  height:var(--h); padding:0 var(--padx);
+  font-weight:800; font-size:15px; line-height:1;
+  border-radius:var(--rad); border:1px solid transparent;
+  background:#fff; color:var(--text);
+  box-shadow:0 2px 8px rgba(2,6,23,.08);
+  transition:transform .15s ease, filter .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.btn-sm{ --h:36px; --rad:10px; --padx:12px; font-size:14px; }
+
+.btn-primary{
+  background:linear-gradient(180deg,#0a84ff,#0562c7);
+  color:#fff; border-color:rgba(10,132,255,.35);
+  box-shadow:0 6px 16px rgba(10,132,255,.25);
+}
+.btn-primary:hover{ filter:brightness(1.04); transform:translateY(-1px); }
+.btn-primary:active{ transform:translateY(0); }
+
+.btn-outline{
+  background:#fff; color:var(--text);
+  border-color:#e6ebf2;
+}
+.btn-outline:hover{ border-color:#cbd5e1; box-shadow:0 3px 10px rgba(2,6,23,.06); }
+
+.btn-danger{
+  background:linear-gradient(180deg,#f87171,#ef4444);
+  color:#fff; border-color:rgba(239,68,68,.35);
+  box-shadow:0 6px 16px rgba(239,68,68,.22);
+}
+.btn-danger:hover{ filter:brightness(1.04); }
+.btn-success{
+  background:linear-gradient(180deg,#22c55e,#16a34a);
+  color:#fff; border-color:rgba(34,197,94,.35);
+  box-shadow:0 6px 16px rgba(22,163,74,.22);
+}
+
 .btn-success{background:var(--success);color:#fff}
 .hidden{display:none!important}
 .center{display:grid;place-items:center;min-height:100dvh;padding:22px}
@@ -425,7 +459,7 @@ header .left{display:flex;align-items:center;gap:10px}
           <option value="menage">Ménage</option>
           <option value="admin">Admin</option>
         </select>
-        <button id="adm-add" class="btn btn-primary">Attribuer le rôle</button>
+        <button id="adm-add" class="btn btn-primary btn-sm">Attribuer le rôle</button>
       </div>
       <p class="muted" style="margin-top:8px">
         Astuce : si l’employé ne s’est pas encore connecté, utilisez cette barre.
@@ -874,17 +908,19 @@ function renderAdmin(host){
       const u = s.data();
       const card = document.createElement('div');
       card.className = 'user-card';
-      card.innerHTML = `
-        <div class="uc-top">
-          <div class="uc-name">${escapeHtml(u.name||'(Sans nom)')}</div>
-          <span class="chip role">${escapeHtml(u.role||'pending')}</span>
-        </div>
-        <div class="uc-email">${escapeHtml(u.email||'')}</div>
-        <div class="uc-actions">
-          <button class="btn btn-outline" data-a="setrole" data-id="${s.id}">Changer rôle</button>
-          <button class="btn btn-danger" data-a="deactivate" data-id="${s.id}">${u.active===false?'Réactiver':'Désactiver'}</button>
-        </div>
-      `;
+card.innerHTML = `
+  <div class="uc-top">
+    <div class="uc-name">${escapeHtml(u.name||'(Sans nom)')}</div>
+    <span class="chip role">${escapeHtml(u.role||'pending')}</span>
+  </div>
+  <div class="uc-email">${escapeHtml(u.email||'')}</div>
+  <div class="uc-actions">
+    <button class="btn btn-outline btn-sm" data-a="setrole" data-id="${s.id}">Changer rôle</button>
+    <button class="btn btn-danger btn-sm" data-a="deactivate" data-id="${s.id}">
+      ${u.active===false?'Réactiver':'Désactiver'}
+    </button>
+  </div>
+`;
       list.appendChild(card);
     });
   });
