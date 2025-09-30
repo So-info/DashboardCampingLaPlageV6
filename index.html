@@ -685,10 +685,10 @@ onAuthStateChanged(auth, async (user) => {
   currentRole = d.role || 'pending';
 
 // ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
-try {
-  const token = await getToken(messaging, {
-    vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc" // ta clé publique VAPID
-  });
+const token = await getToken(messaging, {
+  vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc",
+  serviceWorkerRegistration: await navigator.serviceWorker.register("/DashboardCampingLaPlageV6/firebase-messaging-sw.js")
+});
 
   if (token) {
     // On stocke le token avec comme ID = le token lui-même
