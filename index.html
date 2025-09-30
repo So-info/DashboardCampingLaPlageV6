@@ -16,7 +16,7 @@
       --danger:#ef4444;
       --success:#16a34a;
       --shadow:0 8px 28px rgba(2, 6, 23, .08);
-      --radius:18px;
+      --radius:6px;
 }
     *{box-sizing:border-box}
 html,body{height:100%}
@@ -269,6 +269,26 @@ header .left{display:flex;align-items:center;gap:10px}
   min-width:36px;text-align:center;padding:6px 10px;border-radius:999px;
   background:#f1f5f9;border:1px solid #e6ebf2;font-weight:900;
 }
+/* ==== Location grid ==== */
+.loc-grid{
+  display:grid; gap:12px;
+  grid-template-columns:repeat(2,1fr);
+}
+@media (min-width:520px){ .loc-grid{ grid-template-columns:repeat(3,1fr); } }
+.loc-item{
+  display:flex; flex-direction:column; gap:10px;
+  background:#fff; border:1px solid #e6ebf2; border-radius:16px; padding:12px;
+  box-shadow:var(--shadow);
+}
+.loc-head{ display:flex; justify-content:space-between; align-items:center; gap:8px }
+.loc-name{ font-weight:900 }
+.loc-stock{ font-size:12px; background:#f1f5f9; border:1px solid #e6ebf2; border-radius:999px; padding:4px 8px }
+.stepper{ display:flex; gap:8px; align-items:center; justify-content:flex-end }
+.stepper .qty{
+  min-width:34px; text-align:center; padding:6px 10px; border-radius:999px;
+  background:#eef2ff; color:#3730a3; font-weight:900; border:1px solid #dbeafe;
+}
+
 
   </style>
 </head>
@@ -333,19 +353,18 @@ header .left{display:flex;align-items:center;gap:10px}
 
 <template id="tpl-reception">
   <div class="grid">
+
+    <!-- Barre type/priorité -->
     <div class="card">
-      <div class="section-title">Nouvelle intervention</div>
-      <p class="muted" style="margin-top:-6px">Assignation auto selon type</p>
       <div class="row">
         <div class="col">
           <label>Type</label>
-<select id="rec-type">
-  <option value="technique">Technique</option>
-  <option value="location">Location</option>
-</select>
-
+          <select id="rec-type">
+            <option value="technique">Technique</option>
+            <option value="location">Location</option>
+          </select>
         </div>
-        <div class="col">
+        <div class="col" id="wrap-priority">
           <label>Priorité</label>
           <select id="rec-priority">
             <option value="normale">Normale</option>
@@ -354,64 +373,83 @@ header .left{display:flex;align-items:center;gap:10px}
           </select>
         </div>
       </div>
+    </div>
+
+    <!-- Carte INTERVENTION -->
+    <div id="card-interv" class="card">
+      <div class="section-title">Nouvelle intervention</div>
+      <p class="muted" style="margin-top:-6px">Assignation auto selon type</p>
+
       <label>Mobil Home</label>
       <input id="rec-mh" type="text" placeholder="Ex: B12"/>
+
       <label>Détail</label>
       <textarea id="rec-detail" placeholder="Décrivez le problème…"></textarea>
 
       <div class="row">
         <div class="col">
-          <label>Clients présents ?</label>
+          <label>Clients présents ?</label>
           <div class="pill-switch" data-target="rec-clients">
             <button data-v="oui" class="on">Oui</button>
             <button data-v="non">Non</button>
           </div>
         </div>
         <div class="col">
-          <label>Autorisation d'entrée ?</label>
+          <label>Autorisation d'entrée ?</label>
           <div class="pill-switch" data-target="rec-autorise">
             <button data-v="oui" class="on">Oui</button>
             <button data-v="non">Non</button>
           </div>
         </div>
       </div>
-<div class="actions-right" style="margin-top:12px">
-    <!-- Panneau Location (affiché seulement si Type=location) -->
-<div id="rec-loc" class="loc card hidden" style="margin-top:10px">
-  <div class="section-title">Location</div>
-  <div id="loc-list" class="loc-list"></div>
-</div>
 
-  <button id="rec-create" class="btn btn-primary" style="min-width:120px">Créer</button>
-</div>
-
+      <div class="actions-right" style="margin-top:12px">
+        <button id="rec-create" class="btn btn-primary" style="min-width:120px">Créer</button>
+      </div>
     </div>
 
-<div class="grid">
-  <div class="section-title">File Techniciens</div>
+    <!-- Carte LOCATION -->
+    <div id="card-location" class="card hidden">
+      <div class="section-title">Location</div>
+      <p class="muted" style="margin-top:-6px">Sélectionnez les objets à louer (stock en direct).</p>
 
-  <div class="toolrow">
-    <input id="flt-search" type="text" placeholder="Rechercher (MH, email, détail)">
-    <select id="flt-status">
-      <option value="">Tous statuts</option>
-      <option value="a_faire">À faire</option>
-      <option value="en_cours">En cours</option>
-      <option value="termine">Terminé</option>
-    </select>
-    <select id="flt-priority">
-      <option value="">Toutes priorités</option>
-      <option value="urgente">Urgente</option>
-      <option value="haute">Haute</option>
-      <option value="normale">Normale</option>
-    </select>
-    <button id="flt-clear" class="btn btn-outline">Réinitialiser</button>
-  </div>
+      <div id="loc-grid" class="loc-grid"></div>
 
-  <div class="kanban" id="rec-kanban"></div>
-</div>
+      <div class="row" style="margin-top:10px">
+        <div class="col"><span id="loc-total" class="muted">0 objet sélectionné</span></div>
+        <div class="actions-right">
+          <button id="loc-validate" class="btn btn-primary" style="min-width:140px">Valider la location</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kanban (interventions uniquement) -->
+    <div class="grid">
+      <div class="section-title">File Techniciens</div>
+
+      <div class="toolrow">
+        <input id="flt-search" type="text" placeholder="Rechercher (MH, email, détail)">
+        <select id="flt-status">
+          <option value="">Tous statuts</option>
+          <option value="a_faire">À faire</option>
+          <option value="en_cours">En cours</option>
+          <option value="termine">Terminé</option>
+        </select>
+        <select id="flt-priority">
+          <option value="">Toutes priorités</option>
+          <option value="urgente">Urgente</option>
+          <option value="haute">Haute</option>
+          <option value="normale">Normale</option>
+        </select>
+        <button id="flt-clear" class="btn btn-outline">Réinitialiser</button>
+      </div>
+
+      <div class="kanban" id="rec-kanban"></div>
+    </div>
 
   </div>
 </template>
+
 
 <template id="tpl-technique">
   <div class="grid">
@@ -733,7 +771,7 @@ async function navigateTo(route){
 function renderReception(host){
   host.appendChild(document.importNode($('#tpl-reception').content,true));
 
-  // pill switches
+  // switches (intervention)
   $$('.pill-switch', host).forEach(sw=>{
     sw.addEventListener('click', (e)=>{
       if(e.target.tagName!=='BUTTON') return;
@@ -744,60 +782,85 @@ function renderReception(host){
     sw.dataset.value = 'oui';
   });
 
-  // ----- Location picker -----
-  const RENT_ITEMS = [
-    'Plancha (Petite)','Plancha (Grande)','Lit bébé','Chaise bébé','TV','Ventilateur'
-  ];
-  const locBox = $('#rec-loc', host);
-  const locList = $('#loc-list', host);
   const typeSel = $('#rec-type', host);
-  const selected = Object.fromEntries(RENT_ITEMS.map(n=>[n,0]));
+  const wrapPrio = $('#wrap-priority', host);
+  const cardInterv = $('#card-interv', host);
+  const cardLoc = $('#card-location', host);
+  const grid = $('#loc-grid', host);
+  const totalLbl = $('#loc-total', host);
 
-  // construit l'UI des lignes
-  function buildLocList(){
-    locList.innerHTML='';
-    RENT_ITEMS.forEach(name=>{
-      const row = document.createElement('div');
-      row.className='loc-row';
-      row.innerHTML = `
-        <div class="loc-name">${escapeHtml(name)}</div>
-        <div class="loc-ctrls">
-          <button class="btn btn-outline btn-sm" data-a="minus" data-name="${name}">–1</button>
-          <span class="loc-qty" data-q="${name}">0</span>
-          <button class="btn btn-outline btn-sm" data-a="plus" data-name="${name}">+1</button>
+  // items + sélection
+  const RENT_ITEMS = [
+    {name:'Plancha (Petite)', icon:'🍳'},
+    {name:'Plancha (Grande)', icon:'🥘'},
+    {name:'Lit bébé',         icon:'🛏️'},
+    {name:'Chaise bébé',      icon:'🍼'},
+    {name:'TV',               icon:'📺'},
+    {name:'Ventilateur',      icon:'🌀'},
+  ];
+  const sel = Object.fromEntries(RENT_ITEMS.map(i=>[i.name,0]));
+  let avail = {}; // stock en direct
+
+  // afficher/masquer les cartes selon le type
+  function toggleCards(){
+    const isLoc = typeSel.value === 'location';
+    cardLoc.classList.toggle('hidden', !isLoc);
+    cardInterv.classList.toggle('hidden', isLoc);
+    wrapPrio.classList.toggle('hidden', isLoc); // pas de priorité pour une location
+  }
+  typeSel.addEventListener('change', toggleCards);
+  toggleCards();
+
+  // construit la grille
+  function renderGrid(){
+    grid.innerHTML = '';
+    RENT_ITEMS.forEach(it=>{
+      const a = avail[it.name] ?? 0;
+      const q = sel[it.name] || 0;
+      const el = document.createElement('div');
+      el.className = 'loc-item';
+      el.innerHTML = `
+        <div class="loc-head">
+          <div class="loc-name">${it.icon} ${escapeHtml(it.name)}</div>
+          <span class="loc-stock" data-stock="${CSS.escape(it.name)}">${a} dispo</span>
+        </div>
+        <div class="stepper">
+          <button class="btn btn-outline btn-sm" data-a="minus" data-name="${it.name}">–1</button>
+          <span class="qty" data-qty="${CSS.escape(it.name)}">${q}</span>
+          <button class="btn btn-outline btn-sm" data-a="plus" data-name="${it.name}">+1</button>
         </div>
       `;
-      locList.appendChild(row);
+      grid.appendChild(el);
     });
+    updateTotal();
   }
-  buildLocList();
-
-  // show/hide selon le type
-  function toggleLoc(){
-    const isLoc = typeSel.value === 'location';
-    locBox.classList.toggle('hidden', !isLoc);
-    if(!isLoc){
-      Object.keys(selected).forEach(k=>selected[k]=0);
-      $$('.loc-qty', host).forEach(e=> e.textContent='0');
-    }
+  function updateTotal(){
+    const n = Object.values(sel).reduce((s,x)=>s+x,0);
+    totalLbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
   }
-  typeSel.addEventListener('change', toggleLoc);
-  toggleLoc();
 
-  // handlers +/-
-  locList.addEventListener('click', (e)=>{
-    const a = e.target?.dataset?.a; if(!a) return;
-    const name = e.target.dataset.name;
-    if(a==='plus') selected[name] += 1;
-    if(a==='minus') selected[name] = Math.max(0, selected[name]-1);
-    $(`.loc-qty[data-q="${CSS.escape(name)}"]`, host).textContent = String(selected[name]);
+  // live stock
+  onSnapshot(collection(db,'inventory_location'), (snap)=>{
+    avail = {};
+    snap.forEach(d=>{ const x=d.data(); avail[x.name]=x.qty||0; });
+    renderGrid();
   });
 
-  // ----- Création intervention -----
+  // +/-
+  grid.addEventListener('click',(e)=>{
+    const a = e.target?.dataset?.a; if(!a) return;
+    const name = e.target.dataset.name;
+    const max = (avail[name] ?? Infinity);
+    if(a==='plus') sel[name] = Math.min(max, (sel[name]||0)+1);
+    if(a==='minus') sel[name] = Math.max(0, (sel[name]||0)-1);
+    $(`.qty[data-qty="${CSS.escape(name)}"]`, host).textContent = String(sel[name]);
+    updateTotal();
+  });
+
+  // ---- Création intervention (classique)
   $('#rec-create', host).addEventListener('click', async ()=>{
-    const isLoc = typeSel.value === 'location';
     const payload = {
-      type: typeSel.value,
+      type: 'technique',
       priority: $('#rec-priority', host).value,
       mobilhome: $('#rec-mh', host).value.trim(),
       details: $('#rec-detail', host).value.trim(),
@@ -810,39 +873,46 @@ function renderReception(host){
       doneBy: null,
     };
     if(!payload.mobilhome){ alert('N° Mobilhome requis.'); return; }
-
-    // si location : au moins un article
-    let items=[];
-    if(isLoc){
-      items = Object.entries(selected).filter(([,q])=>q>0).map(([name,qty])=>({name,qty}));
-      if(items.length===0){ alert('Sélectionnez au moins un objet à louer.'); return; }
-      payload.items = items;
-      payload.status = 'termine'; // on ne l’envoie pas aux techniciens
-    }
-
-    try {
+    try{
       await addDoc(collection(db,'interventions'), payload);
-
-      // MAJ inventaire location en direct
-      if(isLoc){
-        for(const it of items){
-          const id = slug(it.name);
-          await setDoc(doc(db,'inventory_location', id),
-            { name: it.name, qty: increment(-it.qty) },
-            { merge:true }
-          );
-        }
-      }
-
-      // reset formulaire
       $('#rec-mh', host).value=''; $('#rec-detail', host).value='';
-      if(isLoc){ Object.keys(selected).forEach(k=>selected[k]=0); $$('.loc-qty', host).forEach(e=>e.textContent='0'); }
     }catch(e){ alert('Erreur: '+e.message); }
   });
 
+  // ---- Validation de location
+  $('#loc-validate', host).addEventListener('click', async ()=>{
+    const items = Object.entries(sel).filter(([,q])=>q>0).map(([name,qty])=>({name,qty}));
+    if(items.length===0){ alert('Sélectionnez au moins un objet.'); return; }
+    try{
+      await addDoc(collection(db,'interventions'), {
+        type:'location',
+        items,
+        status:'termine',
+        createdBy: currentUser.uid,
+        createdByEmail: currentUser.email,
+        createdAt: serverTimestamp()
+      });
+      // décrémentation stock
+      for(const it of items){
+        const id = slug(it.name);
+        await setDoc(doc(db,'inventory_location', id),
+          { name: it.name, qty: increment(-it.qty) },
+          { merge:true }
+        );
+      }
+      // reset
+      Object.keys(sel).forEach(k=> sel[k]=0);
+      $$('.qty', host).forEach(e=> e.textContent='0');
+      updateTotal();
+      alert('Location enregistrée ✅');
+    }catch(e){ alert('Erreur: '+e.message); }
+  });
+
+  // Kanban (ne montre pas les "location", filtré ailleurs)
   const kanban = $('#rec-kanban', host);
   mountInterventionsKanban(kanban, true, host);
 }
+
 
 
   /*************** TECHNIQUE (kanban + validate) ***************/
