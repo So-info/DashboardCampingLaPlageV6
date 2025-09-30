@@ -772,6 +772,13 @@ async function navigateTo(route){
 }
 
 
+// --- Polyfill CSS.escape (Safaris/anciens) ---
+if (!window.CSS) window.CSS = {};
+if (typeof window.CSS.escape !== 'function') {
+  window.CSS.escape = function (sel) {
+    return String(sel).replace(/[^a-zA-Z0-9_\-]/g, s => '\\' + s);
+  };
+}
 
   /*************** RECEPTION (create interventions) ***************/
 function renderReception(host){
@@ -788,13 +795,12 @@ function renderReception(host){
     sw.dataset.value = 'oui';
   });
 
-  const typeSel   = $('#rec-type', host);
-  const wrapPrio  = $('#wrap-priority', host);
-  const cardInterv= $('#card-interv', host);
-  const cardLoc   = $('#card-location', host);
-  const grid      = $('#loc-grid', host);
-  const totalLbl  = $('#loc-total', host);
-  const locMH     = $('#loc-mh', host);
+  const typeSel    = $('#rec-type', host);
+  const wrapPrio   = $('#wrap-priority', host);
+  const cardInterv = $('#card-interv', host);
+  const cardLoc    = $('#card-location', host);
+  const grid       = $('#loc-grid', host);
+  const locMH      = $('#loc-mh', host);
 
   // items + sélection
   const RENT_ITEMS = [
@@ -817,13 +823,14 @@ function renderReception(host){
   typeSel.addEventListener('change', toggleCards);
   toggleCards();
 
-  // grille location
-function updateTotal(){
-  const n = Object.values(sel).reduce((s,x)=>s+x,0);
-  const lbl = $('#loc-total', host);     // re-cherche à chaque fois
-  if (lbl) lbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
-}
+  // --- TOTAL null-safe
+  function updateTotal(){
+    const n = Object.values(sel).reduce((s,x)=>s+x,0);
+    const lbl = $('#loc-total', host);
+    if (lbl) lbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
+  }
 
+  // --- Rendu de la grille
   function renderGrid(){
     grid.innerHTML = '';
     RENT_ITEMS.forEach(it=>{
@@ -839,24 +846,30 @@ function updateTotal(){
         <div class="stepper">
           <button class="btn btn-outline btn-sm" data-a="minus" data-name="${it.name}">–1</button>
           <span class="qty" data-qty="${CSS.escape(it.name)}">${q}</span>
-          <button class="btn btn-outline btn-sm" data-a="plus" data-name="${it.name}">+1</button>
+          <button class="btn btn-outline btn-sm" data-a="plus"  data-name="${it.name}">+1</button>
         </div>
       `;
       grid.appendChild(el);
     });
     updateTotal();
   }
+
   onSnapshot(collection(db,'inventory_location'), (snap)=>{
-    avail = {}; snap.forEach(d=>{ const x=d.data(); avail[x.name]=x.qty||0; });
+    avail = {};
+    snap.forEach(d=>{ const x=d.data(); avail[x.name]=x.qty||0; });
     renderGrid();
   });
+
+  // --- Click sur +/– (null-safe)
   grid.addEventListener('click',(e)=>{
     const a = e.target?.dataset?.a; if(!a) return;
     const name = e.target.dataset.name;
     const max = (avail[name] ?? Infinity);
     if(a==='plus')  sel[name] = Math.min(max, (sel[name]||0)+1);
     if(a==='minus') sel[name] = Math.max(0, (sel[name]||0)-1);
-    $(`.qty[data-qty="${CSS.escape(name)}"]`, host).textContent = String(sel[name]);
+
+    const qtyEl = $(`.qty[data-qty="${CSS.escape(name)}"]`, host);
+    if (qtyEl) qtyEl.textContent = String(sel[name]);   // ✅ évite le crash
     updateTotal();
   });
 
@@ -895,13 +908,13 @@ function updateTotal(){
         mobilhome: mh,
         items,
         priority: 'normale',
-        status:'a_faire',                    // ✅ visible dans le Kanban
+        status:'a_faire',
         createdBy: currentUser.uid,
         createdByEmail: currentUser.email,
         createdAt: serverTimestamp()
       });
 
-      // décrémente le stock immédiatement (réservation)
+      // décrémente le stock (réservation)
       for(const it of items){
         await setDoc(doc(db,'inventory_location', slug(it.name)),
           { name: it.name, qty: increment(-it.qty) },
@@ -918,7 +931,7 @@ function updateTotal(){
     }catch(e){ alert('Erreur: '+e.message); }
   });
 
-  // Kanban (interventions)
+  // Kanban
   const kanban = $('#rec-kanban', host);
   mountInterventionsKanban(kanban, true, host);
 }
