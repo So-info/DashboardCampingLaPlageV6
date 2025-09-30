@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>La Plage – Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='%230093ff'/><text x='50' y='60' font-size='54' text-anchor='middle' fill='white'>L</text></svg>">
+  <style>
+    :root{
+      --brand:#0993ff; /* bleu bouton */
+      --brand-600:#0a7bd6;
+      --text:#0f172a; /* slate-900 */
+      --muted:#64748b; /* slate-500 */
+      --bg:#f6f7fb;   /* gris clair */
+      --card:#ffffff;
+      --danger:#ef4444;
+      --success:#16a34a;
+      --shadow:0 10px 30px rgba(2, 6, 23, .08);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    .container{max-width:960px;margin:0 auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+    .role-badge{background:#eef2ff;border-radius:999px;padding:4px 10px;font-size:12px;color:#3730a3}
+    .btn{appearance:none;border:0;border-radius:14px;padding:14px 16px;font-weight:700;font-size:16px}
+    .btn-primary{background:var(--brand);color:#fff;box-shadow:var(--shadow)}
+    .btn-primary:active{transform:translateY(1px)}
+    .btn-outline{background:#fff;border:1px solid #e5e7eb;color:var(--text)}
+    .btn-danger{background:var(--danger);color:#fff}
+    .btn-success{background:var(--success);color:#fff}
+    .hidden{display:none!important}
+    .center{display:grid;place-items:center;min-height:100dvh;padding:24px}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+    .login-card{width:min(480px,100%);text-align:center}
+    .logo{display:flex;align-items:center;justify-content:center;gap:10px;margin:40px 0 18px}
+    .logo .mark{width:42px;height:42px;border-radius:50%;background:var(--brand);display:grid;place-items:center;color:#fff;font-weight:900}
+    h1{font-size:22px;margin:0 0 8px}
+    p.muted{color:var(--muted);margin:0 0 18px}
+
+    /* dashboard layout */
+    .grid{display:grid;gap:14px}
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .section-title{font-weight:800;margin:0 0 8px}
+    nav.tabs{position:sticky;top:0;background:var(--bg);padding:6px 8px;margin:-6px -8px 12px;border-bottom:1px solid #e5e7eb;z-index:9}
+    nav.tabs .tab{display:inline-block;margin:0 8px 0 0;padding:8px 12px;border-radius:12px;background:#fff;border:1px solid #e5e7eb;color:#0f172a;font-weight:600}
+    nav.tabs .tab.active{background:var(--brand);border-color:var(--brand);color:#fff}
+
+    label{font-size:13px;color:#334155;font-weight:700;display:block;margin:8px 0 6px}
+    input[type="text"], textarea, select{width:100%;border:1px solid #e5e7eb;border-radius:12px;padding:12px 12px;font-size:16px;outline:none;background:#fff}
+    textarea{min-height:92px;resize:vertical}
+    .row{display:flex;gap:10px}
+    .row>.col{flex:1}
+
+    .pill-switch{display:flex;border-radius:999px;overflow:hidden;border:1px solid #e5e7eb}
+    .pill-switch button{flex:1;padding:10px 12px;border:0;background:#fff;font-weight:700}
+    .pill-switch .on{background:var(--brand);color:#fff}
+
+    /* Kanban style for interventions */
+    .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .kanban-col{background:#fff;border-radius:14px;padding:10px;border:1px solid #e5e7eb}
+    .kanban-col h3{margin:4px 0 10px;font-size:14px}
+    .ticket{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:8px 0}
+    .ticket .meta{font-size:12px;color:var(--muted)}
+    .chip{display:inline-block;padding:4px 8px;border-radius:999px;background:#f1f5f9;font-size:12px;margin-right:6px}
+    .chip.green{background:#ecfdf5;color:#065f46}
+    .chip.red{background:#fef2f2;color:#991b1b}
+
+    /* tables */
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    th{font-size:12px;color:#475569;text-align:left;padding:4px 8px}
+    td{background:#fff;border:1px solid #e5e7eb;border-left-width:1px;border-right-width:1px;padding:10px 8px}
+    tr td:first-child{border-radius:12px 0 0 12px}
+    tr td:last-child{border-radius:0 12px 12px 0}
+
+    /* small screens only UI is already mobile-first */
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<section id="view-login" class="center">
+  <div class="card login-card">
+    <div class="logo">
+      <div class="mark">LP</div>
+      <img src="https://dummyimage.com/120x28/ffffff/000000&text=La+Plage" alt="La Plage" style="height:28px;object-fit:contain"/>
+    </div>
+    <h1>Bienvenue sur le dashboard<br/>du camping La Plage</h1>
+    <p class="muted">Accédez à votre espace via Google.</p>
+    <button id="btn-google" class="btn btn-primary" style="width:100%">Continuer avec Google</button>
+  </div>
+</section>
+
+<!-- APP SHELL -->
+<section id="view-app" class="hidden">
+  <header>
+    <div>
+      <div style="font-weight:900">Bon après‑midi !</div>
+      <div style="font-size:12px;color:#475569">Rôle: <span id="role-badge" class="role-badge">…</span> · Connecté : <span id="user-email">…</span></div>
+    </div>
+    <button id="btn-logout" class="btn btn-outline">Se déconnecter</button>
+  </header>
+
+  <nav class="tabs" id="nav-tabs"></nav>
+
+  <div class="container grid" id="route-container">
+    <!-- content injected -->
+  </div>
+</section>
+
+<template id="tpl-reception">
+  <div class="grid">
+    <div class="card">
+      <div class="section-title">Nouvelle intervention</div>
+      <p class="muted" style="margin-top:-6px">Assignation auto selon type</p>
+      <div class="row">
+        <div class="col">
+          <label>Type</label>
+          <select id="rec-type">
+            <option value="technique">Technique</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Priorité</label>
+          <select id="rec-priority">
+            <option value="normale">Normale</option>
+            <option value="haute">Haute</option>
+            <option value="urgente">Urgente</option>
+          </select>
+        </div>
+      </div>
+      <label>Mobil Home</label>
+      <input id="rec-mh" type="text" placeholder="Ex: B12"/>
+      <label>Détail</label>
+      <textarea id="rec-detail" placeholder="Décrivez le problème…"></textarea>
+
+      <div class="row">
+        <div class="col">
+          <label>Clients présents ?</label>
+          <div class="pill-switch" data-target="rec-clients">
+            <button data-v="oui" class="on">Oui</button>
+            <button data-v="non">Non</button>
+          </div>
+        </div>
+        <div class="col">
+          <label>Autorisation d'entrée ?</label>
+          <div class="pill-switch" data-target="rec-autorise">
+            <button data-v="oui" class="on">Oui</button>
+            <button data-v="non">Non</button>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="col"></div>
+        <button id="rec-create" class="btn btn-primary">Créer</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="section-title">File Techniciens</div>
+      <div class="kanban" id="rec-kanban"></div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-technique">
+  <div class="grid">
+    <div class="section-title">Interventions</div>
+    <div class="kanban" id="tech-kanban"></div>
+  </div>
+</template>
+
+<template id="tpl-menage">
+  <div class="grid">
+    <div class="section-title">Tâches Ménage</div>
+    <p class="muted">(en attente de réception)</p>
+  </div>
+</template>
+
+<template id="tpl-admin">
+  <div class="grid">
+    <div class="section-title">Gestion des comptes salarié</div>
+    <div class="card">
+      <div class="row">
+        <input id="adm-email" type="text" placeholder="Email salarié">
+        <select id="adm-role">
+          <option value="reception">Réception</option>
+          <option value="technique">Technique</option>
+          <option value="menage">Ménage</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button id="adm-add" class="btn btn-primary">Ajouter / Mettre à jour</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>Email</th><th>Nom</th><th>Rôle</th><th>Action</th></tr></thead>
+        <tbody id="adm-users"></tbody>
+      </table>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-inventory">
+  <div class="grid">
+    <div class="row">
+      <input id="inv-name" class="col" type="text" placeholder="Nouvel objet">
+      <input id="inv-qty" style="max-width:120px" type="number" value="1"/>
+      <button id="inv-add" class="btn btn-primary">Ajouter</button>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Objet</th><th>Qté</th><th>– / +</th><th>Supprimer</th></tr>
+        </thead>
+        <tbody id="inv-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</template>
+
+<script type="module">
+  /*************************************************
+   *  Firebase SDK (client-only; works on GitHub Pages)
+   *  1) Créez un projet Firebase
+   *  2) Activez Authentication (Google) et Firestore
+   *  3) Remplissez firebaseConfig ci‑dessous
+   *************************************************/
+  // 👉 REMPLACEZ par votre config
+const firebaseConfig = {
+  apiKey: "AIzaSyD3UqR7G6LJxQOft046GVuvalq61Nmga80",
+  authDomain: "dashboardv6-41aba.firebaseapp.com",
+  projectId: "dashboardv6-41aba",
+  storageBucket: "dashboardv6-41aba.firebasestorage.app",
+  messagingSenderId: "837982707095",
+  appId: "1:837982707095:web:efd87ab0b9dca97f51b8d2"
+};
+
+  // Charger Firebase modules dynamiquement pour rester dans un seul fichier
+  const [{ initializeApp }, { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut }, { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp }] = await Promise.all([
+    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js'),
+    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js'),
+  ]);
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // DOM helpers
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+  const show = id => { $('#view-login').classList.add('hidden'); $('#view-app').classList.remove('hidden'); };
+  const hideApp = ()=>{ $('#view-app').classList.add('hidden'); $('#view-login').classList.remove('hidden'); };
+
+  // State
+  let currentUser = null;   // {uid, displayName, email}
+  let currentRole = null;   // 'admin' | 'reception' | 'technique' | 'menage'
+  const ROLES = ['admin','reception','technique','menage'];
+
+  // --- Auth UI ---
+  $('#btn-google').addEventListener('click', async ()=>{
+    const provider = new GoogleAuthProvider();
+    try { await signInWithPopup(auth, provider); } catch(e){ alert('Connexion impossible: '+e.message); }
+  });
+  $('#btn-logout').addEventListener('click', ()=> signOut(auth));
+
+  onAuthStateChanged(auth, async (user)=>{
+    if(!user){ hideApp(); return; }
+    currentUser = user;
+    // Create or fetch user profile/role
+    const uref = doc(db,'users', user.uid);
+    const snap = await getDoc(uref);
+    if(!snap.exists()){
+      // first login -> default reception (change in admin)
+      await setDoc(uref, { uid:user.uid, email:user.email, name:user.displayName||'', role:'reception', createdAt:serverTimestamp(), active:true });
+      currentRole = 'reception';
+    }else{
+      const d = snap.data();
+      if(d.active===false){ alert('Compte désactivé.'); await signOut(auth); return; }
+      currentRole = d.role;
+    }
+    $('#user-email').textContent = currentUser.email || '';
+    $('#role-badge').textContent = currentRole||'';
+    show();
+    buildTabs();
+    navigateTo(location.hash.replace('#','')||defaultRoute());
+  });
+
+  // Routing based on role
+  const routesByRole = {
+    admin: ['reception','technique','menage','inventory-tech','inventory-menage','admin'],
+    reception: ['reception'],
+    technique: ['technique','inventory-tech'],
+    menage: ['menage','inventory-menage']
+  };
+  const labels = {
+    'reception':'Réception', 'technique':'Technique', 'menage':'Ménage', 'admin':'Administration',
+    'inventory-tech':'Inventaire (Technique)', 'inventory-menage':'Inventaire (Ménage)'
+  };
+  const defaultRoute = ()=> routesByRole[currentRole]?.[0] || 'reception';
+
+  function buildTabs(){
+    const tabs = routesByRole[currentRole]||[];
+    const nav = $('#nav-tabs');
+    nav.innerHTML = '';
+    for(const r of tabs){
+      const a = document.createElement('button');
+      a.className = 'tab'; a.textContent = labels[r]||r; a.dataset.route=r;
+      a.addEventListener('click', ()=> navigateTo(r));
+      nav.appendChild(a);
+    }
+  }
+  function setActiveTab(route){
+    $$('#nav-tabs .tab').forEach(t=> t.classList.toggle('active', t.dataset.route===route));
+  }
+
+  window.addEventListener('hashchange', ()=> navigateTo(location.hash.replace('#','')));
+
+  async function navigateTo(route){
+    if(!route){ route = defaultRoute(); }
+    setActiveTab(route);
+    const host = $('#route-container');
+    host.innerHTML='';
+    if(route==='reception') renderReception(host);
+    if(route==='technique') renderTechnique(host);
+    if(route==='menage') renderMenage(host);
+    if(route==='admin') renderAdmin(host);
+    if(route==='inventory-tech') renderInventory(host, 'inventory_tech');
+    if(route==='inventory-menage') renderInventory(host, 'inventory_menage');
+    location.hash = '#'+route;
+  }
+
+  /*************** RECEPTION (create interventions) ***************/
+  function renderReception(host){
+    host.appendChild(document.importNode($('#tpl-reception').content,true));
+    // pill switches
+    $$('.pill-switch', host).forEach(sw=>{
+      sw.addEventListener('click', (e)=>{
+        if(e.target.tagName!=='BUTTON') return;
+        $$('.pill-switch button', sw).forEach(b=>b.classList.remove('on'));
+        e.target.classList.add('on');
+        sw.dataset.value = e.target.dataset.v;
+      });
+      sw.dataset.value = 'oui';
+    });
+
+    $('#rec-create', host).addEventListener('click', async ()=>{
+      const payload = {
+        type: $('#rec-type', host).value,
+        priority: $('#rec-priority', host).value,
+        mobilhome: $('#rec-mh', host).value.trim(),
+        details: $('#rec-detail', host).value.trim(),
+        clientsPresent: $('[data-target="rec-clients"]', host).dataset.value==='oui',
+        autorise: $('[data-target="rec-autorise"]', host).dataset.value==='oui',
+        status: 'a_faire',
+        createdBy: currentUser.uid,
+        createdByEmail: currentUser.email,
+        createdAt: serverTimestamp(),
+        doneBy: null,
+      };
+      if(!payload.mobilhome){ alert('N° Mobilhome requis.'); return; }
+      try {
+        await addDoc(collection(db,'interventions'), payload);
+        $('#rec-mh', host).value=''; $('#rec-detail', host).value='';
+      }catch(e){ alert('Erreur: '+e.message); }
+    });
+
+    const kanban = $('#rec-kanban', host);
+    mountInterventionsKanban(kanban, true); // true => show validate buttons for technicians too
+  }
+
+  /*************** TECHNIQUE (kanban + validate) ***************/
+  function renderTechnique(host){
+    host.appendChild(document.importNode($('#tpl-technique').content,true));
+    const kanban = $('#tech-kanban', host);
+    mountInterventionsKanban(kanban, true);
+  }
+
+  /*************** MENAGE (placeholder) ***************/
+  function renderMenage(host){
+    host.appendChild(document.importNode($('#tpl-menage').content,true));
+  }
+
+  // Shared kanban renderer for interventions
+  function mountInterventionsKanban(container, allowActions){
+    const cols = [
+      {key:'a_faire', title:'À faire'},
+      {key:'en_cours', title:'En cours'},
+      {key:'termine', title:'Terminé'},
+    ];
+    container.innerHTML = cols.map(c=>`<div class="kanban-col" data-col="${c.key}"><h3>${c.title}</h3><div class="col-body"></div></div>`).join('');
+
+    const q = query(collection(db,'interventions'), orderBy('createdAt','desc'));
+    const unsub = onSnapshot(q, (snap)=>{
+      // reset
+      $$('.kanban-col .col-body', container).forEach(b=> b.innerHTML='');
+      snap.forEach(docSnap=>{
+        const d = docSnap.data();
+        const card = document.createElement('div');
+        card.className='ticket';
+        card.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div style="font-weight:800">MH ${escapeHtml(d.mobilhome||'?')}</div>
+            <span class="chip ${d.clientsPresent?'green':'red'}">Clients ${d.clientsPresent?'présents':'absents'}</span>
+            <span class="chip ${d.autorise?'green':'red'}">${d.autorise?'Autorisé':'Interdit'}</span>
+          </div>
+          <div class="meta">${(d.priority||'normale').toUpperCase()} • ${d.createdByEmail||''}</div>
+          ${d.details?`<div style="margin-top:6px">${escapeHtml(d.details)}</div>`:''}
+          <div class="row" style="margin-top:10px">
+            ${allowActions ? actionsHtml() : ''}
+          </div>
+        `;
+        function actionsHtml(){
+          if(currentRole==='technique' || currentRole==='admin'){
+            return `
+              <button class="btn btn-outline" data-act="to_en_cours">En cours</button>
+              <button class="btn btn-success" data-act="to_termine">Terminer</button>
+            `;
+          }
+          return '';
+        }
+        // actions
+        card.addEventListener('click', async (e)=>{
+          const act = e.target?.dataset?.act; if(!act) return;
+          const ref = doc(db,'interventions', docSnap.id);
+          try{
+            if(act==='to_en_cours') await updateDoc(ref, { status:'en_cours' });
+            if(act==='to_termine') await updateDoc(ref, { status:'termine', doneBy: currentUser.email, doneAt:serverTimestamp() });
+          }catch(err){ alert(err.message); }
+        });
+        const mount = $(`.kanban-col[data-col="${d.status||'a_faire'}"] .col-body`, container);
+        (mount||$(`.kanban-col[data-col="a_faire"] .col-body`, container)).appendChild(card);
+      });
+    });
+    // store unsub if needed later
+    container._unsub = unsub;
+  }
+
+  /********************* ADMIN ************************/ 
+  function renderAdmin(host){
+    host.appendChild(document.importNode($('#tpl-admin').content,true));
+    const tbody = $('#adm-users', host);
+
+    $('#adm-add', host).addEventListener('click', async ()=>{
+      const email = $('#adm-email', host).value.trim().toLowerCase();
+      const role = $('#adm-role', host).value;
+      if(!email) return alert('Email requis');
+      try{
+        // We store by email as document id for easy lookup in Cloud Function or onboarding
+        const key = email.replaceAll('.', '·');
+        await setDoc(doc(db,'directory', key), { email, role, updatedAt:serverTimestamp() }, { merge:true });
+        alert('Rôle mis à jour. Quand cet utilisateur se connectera, son rôle sera synchronisé.');
+      }catch(e){ alert(e.message); }
+    });
+
+    // live list of actual users
+    const unsub = onSnapshot(collection(db,'users'), (snap)=>{
+      tbody.innerHTML='';
+      snap.forEach(s=>{
+        const u=s.data();
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${escapeHtml(u.email||'')}</td>
+          <td>${escapeHtml(u.name||'')}</td>
+          <td>${escapeHtml(u.role||'')}</td>
+          <td>
+            <button class="btn btn-outline" data-id="${s.id}" data-a="promote">Changer rôle</button>
+            <button class="btn btn-danger" data-id="${s.id}" data-a="deactivate">Désactiver</button>
+          </td>`;
+        tbody.appendChild(tr);
+      })
+    });
+
+    tbody.addEventListener('click', async (e)=>{
+      const id=e.target?.dataset?.id; if(!id) return;
+      if(e.target.dataset.a==='deactivate'){
+        await updateDoc(doc(db,'users',id), { active:false });
+      }else if(e.target.dataset.a==='promote'){
+        const role = prompt('Nouveau rôle (admin/reception/technique/menage):', 'reception');
+        if(!ROLES.includes(role)) return alert('Rôle invalide');
+        await updateDoc(doc(db,'users',id), { role });
+      }
+    });
+  }
+
+  /******************* INVENTORY (tech or menage) ******************/
+  function renderInventory(host, collectionName){
+    host.appendChild(document.importNode($('#tpl-inventory').content,true));
+    const rows = $('#inv-rows', host);
+
+    $('#inv-add', host).addEventListener('click', async ()=>{
+      const name = $('#inv-name', host).value.trim();
+      const qty = parseInt($('#inv-qty', host).value||'0',10);
+      if(!name) return alert('Objet requis');
+      await addDoc(collection(db, collectionName), { name, qty, createdAt:serverTimestamp() });
+      $('#inv-name', host).value='';
+    });
+
+    const unsub = onSnapshot(query(collection(db,collectionName), orderBy('name')), (snap)=>{
+      rows.innerHTML='';
+      snap.forEach(s=>{
+        const d=s.data();
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${escapeHtml(d.name)}</td>
+          <td>${d.qty}</td>
+          <td>
+            <button class="btn btn-outline" data-a="minus" data-id="${s.id}">–1</button>
+            <button class="btn btn-outline" data-a="plus" data-id="${s.id}">+1</button>
+          </td>
+          <td><button class="btn btn-danger" data-a="del" data-id="${s.id}">Supprimer</button></td>
+        `;
+        rows.appendChild(tr);
+      })
+    });
+
+    rows.addEventListener('click', async (e)=>{
+      const id=e.target?.dataset?.id; if(!id) return;
+      const ref = doc(db,collectionName,id);
+      const a = e.target.dataset.a;
+      if(a==='del'){ if(confirm('Supprimer ?')) await deleteDoc(ref); return; }
+      // change qty atomically (simple read+write; for heavy use switch to increment)
+      const curr = (await getDoc(ref)).data();
+      let qty = curr?.qty||0;
+      if(a==='plus') qty++;
+      if(a==='minus') qty=Math.max(0,qty-1);
+      await updateDoc(ref,{ qty });
+    });
+  }
+
+  /****************** UTIL ************************/ 
+  function escapeHtml(x=''){ return x.replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
+
+  /****************** ROLE SYNC ********************/
+  // Optionnel : quand l'utilisateur se connecte, on synchronise son rôle à partir
+  // de la collection 'directory' gérée par l'admin (clé = email).
+  async function syncRoleFromDirectory(){
+    if(!currentUser) return;
+    const key = (currentUser.email||'').toLowerCase().replaceAll('.', '·');
+    const entry = await getDoc(doc(db,'directory',key));
+    if(entry.exists()){
+      const role = entry.data().role;
+      if(role && role!==currentRole){
+        await updateDoc(doc(db,'users', currentUser.uid), { role });
+        currentRole = role; buildTabs(); navigateTo(defaultRoute());
+      }
+    }
+  }
+  // run at start of each session
+  setTimeout(syncRoleFromDirectory, 1000);
+
+</script>
+</body>
+</html>
