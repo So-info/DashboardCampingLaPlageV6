@@ -408,20 +408,24 @@ header .left{display:flex;align-items:center;gap:10px}
       </div>
     </div>
 
-    <!-- Carte LOCATION -->
-    <div id="card-location" class="card hidden">
-      <div class="section-title">Location</div>
-      <p class="muted" style="margin-top:-6px">Sélectionnez les objets à louer (stock en direct).</p>
+<!-- Carte LOCATION -->
+<div id="card-location" class="card hidden">
+  <div class="section-title">Location</div>
+  <p class="muted" style="margin-top:-6px">Sélectionnez les objets à louer (stock en direct) et indiquez le Mobil Home.</p>
 
-      <div id="loc-grid" class="loc-grid"></div>
+  <label>Mobil Home</label>
+  <input id="loc-mh" type="text" placeholder="Ex: B12"/>
 
-      <div class="row" style="margin-top:10px">
-        <div class="col"><span id="loc-total" class="muted">0 objet sélectionné</span></div>
-        <div class="actions-right">
-          <button id="loc-validate" class="btn btn-primary" style="min-width:140px">Valider la location</button>
-        </div>
-      </div>
+  <div id="loc-grid" class="loc-grid" style="margin-top:8px"></div>
+
+  <div class="row" style="margin-top:10px">
+    <div class="col"><span id="loc-total" class="muted">0 objet sélectionné</span></div>
+    <div class="actions-right">
+      <button id="loc-validate" class="btn btn-primary" style="min-width:160px">Créer la demande</button>
     </div>
+  </div>
+</div>
+
 
     <!-- Kanban (interventions uniquement) -->
     <div class="grid">
@@ -782,12 +786,13 @@ function renderReception(host){
     sw.dataset.value = 'oui';
   });
 
-  const typeSel = $('#rec-type', host);
-  const wrapPrio = $('#wrap-priority', host);
-  const cardInterv = $('#card-interv', host);
-  const cardLoc = $('#card-location', host);
-  const grid = $('#loc-grid', host);
-  const totalLbl = $('#loc-total', host);
+  const typeSel   = $('#rec-type', host);
+  const wrapPrio  = $('#wrap-priority', host);
+  const cardInterv= $('#card-interv', host);
+  const cardLoc   = $('#card-location', host);
+  const grid      = $('#loc-grid', host);
+  const totalLbl  = $('#loc-total', host);
+  const locMH     = $('#loc-mh', host);
 
   // items + sélection
   const RENT_ITEMS = [
@@ -799,9 +804,8 @@ function renderReception(host){
     {name:'Ventilateur',      icon:'🌀'},
   ];
   const sel = Object.fromEntries(RENT_ITEMS.map(i=>[i.name,0]));
-  let avail = {}; // stock en direct
+  let avail = {};
 
-  // afficher/masquer les cartes selon le type
   function toggleCards(){
     const isLoc = typeSel.value === 'location';
     cardLoc.classList.toggle('hidden', !isLoc);
@@ -811,18 +815,22 @@ function renderReception(host){
   typeSel.addEventListener('change', toggleCards);
   toggleCards();
 
-  // construit la grille
+  // grille location
+  function updateTotal(){
+    const n = Object.values(sel).reduce((s,x)=>s+x,0);
+    totalLbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
+  }
   function renderGrid(){
     grid.innerHTML = '';
     RENT_ITEMS.forEach(it=>{
-      const a = avail[it.name] ?? 0;
+      const stock = avail[it.name] ?? 0;
       const q = sel[it.name] || 0;
       const el = document.createElement('div');
       el.className = 'loc-item';
       el.innerHTML = `
         <div class="loc-head">
           <div class="loc-name">${it.icon} ${escapeHtml(it.name)}</div>
-          <span class="loc-stock" data-stock="${CSS.escape(it.name)}">${a} dispo</span>
+          <span class="loc-stock" data-stock="${CSS.escape(it.name)}">${stock} dispo</span>
         </div>
         <div class="stepper">
           <button class="btn btn-outline btn-sm" data-a="minus" data-name="${it.name}">–1</button>
@@ -834,24 +842,15 @@ function renderReception(host){
     });
     updateTotal();
   }
-  function updateTotal(){
-    const n = Object.values(sel).reduce((s,x)=>s+x,0);
-    totalLbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
-  }
-
-  // live stock
   onSnapshot(collection(db,'inventory_location'), (snap)=>{
-    avail = {};
-    snap.forEach(d=>{ const x=d.data(); avail[x.name]=x.qty||0; });
+    avail = {}; snap.forEach(d=>{ const x=d.data(); avail[x.name]=x.qty||0; });
     renderGrid();
   });
-
-  // +/-
   grid.addEventListener('click',(e)=>{
     const a = e.target?.dataset?.a; if(!a) return;
     const name = e.target.dataset.name;
     const max = (avail[name] ?? Infinity);
-    if(a==='plus') sel[name] = Math.min(max, (sel[name]||0)+1);
+    if(a==='plus')  sel[name] = Math.min(max, (sel[name]||0)+1);
     if(a==='minus') sel[name] = Math.max(0, (sel[name]||0)-1);
     $(`.qty[data-qty="${CSS.escape(name)}"]`, host).textContent = String(sel[name]);
     updateTotal();
@@ -879,39 +878,47 @@ function renderReception(host){
     }catch(e){ alert('Erreur: '+e.message); }
   });
 
-  // ---- Validation de location
+  // ---- Création d'une LOCATION -> intervention "à faire" + décrément stock
   $('#loc-validate', host).addEventListener('click', async ()=>{
     const items = Object.entries(sel).filter(([,q])=>q>0).map(([name,qty])=>({name,qty}));
+    const mh = (locMH.value||'').trim();
+    if(!mh){ alert('Indiquez le Mobil Home.'); return; }
     if(items.length===0){ alert('Sélectionnez au moins un objet.'); return; }
+
     try{
       await addDoc(collection(db,'interventions'), {
         type:'location',
+        mobilhome: mh,
         items,
-        status:'termine',
+        priority: 'normale',
+        status:'a_faire',                    // ✅ visible dans le Kanban
         createdBy: currentUser.uid,
         createdByEmail: currentUser.email,
         createdAt: serverTimestamp()
       });
-      // décrémentation stock
+
+      // décrémente le stock immédiatement (réservation)
       for(const it of items){
-        const id = slug(it.name);
-        await setDoc(doc(db,'inventory_location', id),
+        await setDoc(doc(db,'inventory_location', slug(it.name)),
           { name: it.name, qty: increment(-it.qty) },
           { merge:true }
         );
       }
+
       // reset
       Object.keys(sel).forEach(k=> sel[k]=0);
       $$('.qty', host).forEach(e=> e.textContent='0');
+      locMH.value='';
       updateTotal();
-      alert('Location enregistrée ✅');
+      alert('Demande de location créée ✅');
     }catch(e){ alert('Erreur: '+e.message); }
   });
 
-  // Kanban (ne montre pas les "location", filtré ailleurs)
+  // Kanban (interventions)
   const kanban = $('#rec-kanban', host);
   mountInterventionsKanban(kanban, true, host);
 }
+
 
 
 
@@ -958,8 +965,7 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
   let docs = [];
   const qRef = query(collection(db,'interventions'), orderBy('createdAt','desc'));
   const unsub = onSnapshot(qRef, (snap)=>{
-    docs = [];
-    snap.forEach(ds=> docs.push({ id: ds.id, data: ds.data() }));
+    docs = []; snap.forEach(ds=> docs.push({ id: ds.id, data: ds.data() }));
     apply();
   });
 
@@ -975,14 +981,14 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
 
     docs.forEach(item=>{
       const d = item.data;
+      const isLoc = (d.type||'').toLowerCase()==='location';
 
-      // ⚠️ on ne montre pas les interventions de type "location" dans le kanban
-      if ((d.type||'').toLowerCase() === 'location') return;
-
+      // filtres
       if(filter.prio && (d.priority||'').toLowerCase() !== filter.prio) return;
       if(filter.status && (d.status||'a_faire') !== filter.status) return;
       if(filter.q){
-        const hay = [d.mobilhome||'', d.details||'', d.createdByEmail||'', (d.priority||'')].join(' ').toLowerCase();
+        const itemsTxt = (d.items||[]).map(x=>`${x.name} ${x.qty}`).join(' ');
+        const hay = [d.mobilhome||'', d.details||'', d.createdByEmail||'', (d.priority||''), itemsTxt].join(' ').toLowerCase();
         if(!hay.includes(filter.q)) return;
       }
 
@@ -992,21 +998,31 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
       const card = document.createElement('div'); card.className='ticket';
       card.innerHTML = `
         <div class="t-top">
-          <div class="t-title">MH <b>${escapeHtml(d.mobilhome||'?')}</b></div>
-          <span class="chip pr ${prClass}">${(d.priority||'normale').toUpperCase()}</span>
+          <div class="t-title">${isLoc?'LOC • ':''}MH <b>${escapeHtml(d.mobilhome||'?')}</b></div>
+          ${isLoc
+            ? `<span class="chip pr normal">LOCATION</span>`
+            : `<span class="chip pr ${prClass}">${(d.priority||'normale').toUpperCase()}</span>`
+          }
         </div>
-        ${d.details?`<div class="t-details">${escapeHtml(d.details)}</div>`:''}
+        ${ isLoc
+            ? `<div class="t-details">${
+                (d.items||[]).map(it=>`<span class="chip">${escapeHtml(it.name)} × ${it.qty}</span>`).join(' ')
+              }</div>`
+            : (d.details?`<div class="t-details">${escapeHtml(d.details)}</div>`:'')
+        }
+        ${ !isLoc ? `
         <div class="t-chips">
           <span class="chip ${d.clientsPresent?'green':'red'}">Clients ${d.clientsPresent?'présents':'absents'}</span>
           <span class="chip ${d.autorise?'green':'red'}">${d.autorise?'Autorisé':'Interdit'}</span>
-        </div>
+        </div>` : '' }
         <div class="meta">${escapeHtml(d.createdByEmail||'')}</div>
         ${allowActions && (currentRole==='technique' || currentRole==='admin') ? `
           <div class="ticket-actions">
-            <button class="btn btn-outline" data-act="to_en_cours">En cours</button>
-            <button class="btn btn-success" data-act="to_termine">Terminer</button>
+            <button class="btn btn-outline btn-sm" data-act="to_en_cours">En cours</button>
+            <button class="btn btn-success btn-sm" data-act="to_termine">Terminer</button>
           </div>` : '' }
       `;
+
       card.addEventListener('click', async (e)=>{
         const act = e.target?.dataset?.act; if(!act) return;
         const ref = doc(db,'interventions', item.id);
@@ -1030,6 +1046,7 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
 
   container._unsub = unsub;
 }
+
 
 function storageAvailable(type){
   try { const x='__t'; window[type].setItem(x,x); window[type].removeItem(x); return true; }
