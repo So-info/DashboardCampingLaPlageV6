@@ -569,6 +569,8 @@ const firebaseConfig = {
   messagingSenderId: "837982707095",
   appId: "1:837982707095:web:efd87ab0b9dca97f51b8d2"
 };
+const { getMessaging, getToken, onMessage } = await import('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging.js');
+const messaging = getMessaging(app);
 
   // Charger Firebase modules dynamiquement pour rester dans un seul fichier
 const [{ initializeApp },
@@ -636,34 +638,16 @@ $('#btn-google').addEventListener('click', async ()=>{
   $('#btn-logout').addEventListener('click', ()=> signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
-  if (!user) { hideApp(); return; }
+  if (!user) {
+    hideApp();
+    return;
+  }
 
   currentUser = user;
 
+  // --- Vérifie ou crée le profil utilisateur dans Firestore ---
   const uref = doc(db, 'users', user.uid);
-  let snap;
-
-  // 1) Essaye de lire le profil; si ça échoue, crée-le.
-  try {
-    snap = await getDoc(uref);
-  } catch (e) {
-    try {
-      await setDoc(uref, {
-        uid: user.uid,
-        email: user.email,
-        name: user.displayName || '',
-        role: 'pending',
-        createdAt: serverTimestamp(),
-        active: true
-      }, { merge:true });
-      snap = await getDoc(uref);
-    } catch (e2) {
-      console.error('Profile read/create failed:', e2);
-      alert("Problème d'accès au profil. Vérifie les règles Firestore.");
-      hideApp();
-      return;
-    }
-  }
+  let snap = await getDoc(uref);
 
   if (!snap.exists()) {
     await setDoc(uref, {
@@ -677,21 +661,50 @@ onAuthStateChanged(auth, async (user) => {
     snap = await getDoc(uref);
   }
 
-  // 2) Statut + rôle
   const d = snap.data();
-  if (d.active === false) { alert('Compte désactivé.'); await signOut(auth); return; }
+  if (d.active === false) {
+    alert('Compte désactivé.');
+    await signOut(auth);
+    return;
+  }
+
   currentRole = d.role || 'pending';
 
-  // 3) UI
+  // ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
+  try {
+    const token = await getToken(messaging, {
+      vapidKey: "🔑_TA_CLE_VAPID_PUBLIC_" // récupère-la dans Firebase Console > Paramètres du projet > Cloud Messaging
+    });
+
+    if (token) {
+      // On stocke le token avec comme ID = le token lui-même
+      await setDoc(doc(db, "fcmTokens", token), {
+        userId: user.uid,
+        role: currentRole,
+        createdAt: serverTimestamp()
+      });
+      console.log("✅ Token FCM enregistré :", token);
+    } else {
+      console.warn("⚠️ Aucun token FCM obtenu (permission refusée ?)");
+    }
+  } catch (err) {
+    console.error("❌ Erreur lors de la récupération du token FCM :", err);
+  }
+  // ==========================================================================
+
+  // --- UI ---
   $('#user-email').textContent = currentUser.email || '';
   $('#role-badge').textContent = currentRole || '';
   show();
   buildTabs();
   navigateTo(defaultRoute());
 
-  // 4) Synchro éventuelle depuis 'directory'
-  try { await syncRoleFromDirectory(); } catch (_) {}
+  // --- Synchro éventuelle avec 'directory' ---
+  try {
+    await syncRoleFromDirectory();
+  } catch (_) {}
 });
+
 
 
 
