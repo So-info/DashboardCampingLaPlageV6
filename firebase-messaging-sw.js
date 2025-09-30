@@ -1,5 +1,4 @@
 // firebase-messaging-sw.js
-
 importScripts('https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js');
 
@@ -12,15 +11,12 @@ firebase.initializeApp({
   appId: "1:837982707095:web:efd87ab0b9dca97f51b8d2"
 });
 
-// Initialise le service worker Firebase Messaging
 const messaging = firebase.messaging();
 
-// Quand une notif arrive en arrière-plan
 messaging.onBackgroundMessage((payload) => {
   console.log("📩 Notification reçue en arrière-plan :", payload);
-
   self.registration.showNotification(payload.notification.title, {
     body: payload.notification.body,
-    icon: "/logo-camping-la-plage.png" // tu peux changer l’icône
+    icon: "/DashboardCampingLaPlageV6/logo-camping-la-plage.png"
   });
 });
