@@ -419,7 +419,8 @@ header .left{display:flex;align-items:center;gap:10px}
   <div id="loc-grid" class="loc-grid" style="margin-top:8px"></div>
 
   <div class="row" style="margin-top:10px">
-    <div class="col"><span id="loc-total" class="muted">0 objet sélectionné</span></div>
+<span id="loc-total" class="muted">0 objet sélectionné</span>
+
     <div class="actions-right">
       <button id="loc-validate" class="btn btn-primary" style="min-width:160px">Créer la demande</button>
     </div>
@@ -725,8 +726,9 @@ function buildTabs(){
     menu.appendChild(b);
   }
   // infos dans le drawer
-  $('#user-email2').textContent = currentUser?.email || '';
-  $('#role-badge2').textContent = currentRole || '';
+const ue = $('#user-email2'); if (ue) ue.textContent = currentUser?.email || '';
+const rb = $('#role-badge2'); if (rb) rb.textContent = currentRole || '';
+
 }
 
 function setActiveTab(route){
@@ -816,10 +818,12 @@ function renderReception(host){
   toggleCards();
 
   // grille location
-  function updateTotal(){
-    const n = Object.values(sel).reduce((s,x)=>s+x,0);
-    totalLbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
-  }
+function updateTotal(){
+  const n = Object.values(sel).reduce((s,x)=>s+x,0);
+  const lbl = $('#loc-total', host);     // re-cherche à chaque fois
+  if (lbl) lbl.textContent = n===1 ? '1 objet sélectionné' : `${n} objets sélectionnés`;
+}
+
   function renderGrid(){
     grid.innerHTML = '';
     RENT_ITEMS.forEach(it=>{
