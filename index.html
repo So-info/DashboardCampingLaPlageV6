@@ -129,6 +129,18 @@ td{background:#fff;border:1px solid #e6ebf2;border-left-width:1px;border-right-w
 tr td:first-child{border-radius:14px 0 0 14px}
 tr td:last-child{border-radius:0 14px 14px 0}
 
+/* ===== Admin list (cards) ===== */
+.list{display:grid;gap:12px}
+.user-card{
+  background:#fff;border:1px solid #e6ebf2;border-radius:16px;
+  padding:14px; box-shadow: var(--shadow);
+}
+.uc-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.uc-name{font-weight:900}
+.uc-email{font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all}
+.uc-actions{display:flex;gap:8px;flex-wrap:wrap}
+.chip.role{background:#eef2ff;color:#3730a3}
+
 /* full-width primary button on mobile */
 .actions-right{display:flex;justify-content:flex-end}
   </style>
@@ -254,27 +266,29 @@ tr td:last-child{border-radius:0 14px 14px 0}
 <template id="tpl-admin">
   <div class="grid">
     <div class="section-title">Gestion des comptes salarié</div>
+
+    <!-- Barre d’attribution rapide par email (stockée dans 'directory') -->
     <div class="card">
       <div class="row">
-        <input id="adm-email" type="text" placeholder="Email salarié">
+        <input id="adm-email" type="text" placeholder="Email salarié" />
         <select id="adm-role">
           <option value="reception">Réception</option>
           <option value="technique">Technique</option>
           <option value="menage">Ménage</option>
           <option value="admin">Admin</option>
         </select>
-        <button id="adm-add" class="btn btn-primary">Ajouter / Mettre à jour</button>
+        <button id="adm-add" class="btn btn-primary">Attribuer le rôle</button>
       </div>
+      <p class="muted" style="margin-top:8px">
+        Astuce : si l’employé ne s’est pas encore connecté, utilisez cette barre.
+      </p>
     </div>
 
-    <div class="card">
-      <table>
-        <thead><tr><th>Email</th><th>Nom</th><th>Rôle</th><th>Action</th></tr></thead>
-        <tbody id="adm-users"></tbody>
-      </table>
-    </div>
+    <!-- Liste des utilisateurs existants (cartes) -->
+    <div id="adm-list" class="list"></div>
   </div>
 </template>
+
 
 <template id="tpl-inventory">
   <div class="grid">
@@ -541,51 +555,67 @@ function renderPending(host){
   }
 
   /********************* ADMIN ************************/ 
-  function renderAdmin(host){
-    host.appendChild(document.importNode($('#tpl-admin').content,true));
-    const tbody = $('#adm-users', host);
+function renderAdmin(host){
+  host.appendChild(document.importNode($('#tpl-admin').content,true));
 
-    $('#adm-add', host).addEventListener('click', async ()=>{
-      const email = $('#adm-email', host).value.trim().toLowerCase();
-      const role = $('#adm-role', host).value;
-      if(!email) return alert('Email requis');
-      try{
-        // We store by email as document id for easy lookup in Cloud Function or onboarding
-        const key = email.replaceAll('.', '·');
-        await setDoc(doc(db,'directory', key), { email, role, updatedAt:serverTimestamp() }, { merge:true });
-        alert('Rôle mis à jour. Quand cet utilisateur se connectera, son rôle sera synchronisé.');
-      }catch(e){ alert(e.message); }
-    });
+  // Attribution anticipée via 'directory'
+  $('#adm-add', host).addEventListener('click', async ()=>{
+    const email = $('#adm-email', host).value.trim().toLowerCase();
+    const role = $('#adm-role', host).value;
+    if(!email) return alert('Email requis');
+    try{
+      const key = email.replaceAll('.', '·');
+      await setDoc(doc(db,'directory', key), { email, role, updatedAt:serverTimestamp() }, { merge:true });
+      alert('Rôle enregistré. Au prochain login, l’utilisateur héritera de ce rôle.');
+      $('#adm-email', host).value = '';
+    }catch(e){ alert(e.message); }
+  });
 
-    // live list of actual users
-    const unsub = onSnapshot(collection(db,'users'), (snap)=>{
-      tbody.innerHTML='';
-      snap.forEach(s=>{
-        const u=s.data();
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${escapeHtml(u.email||'')}</td>
-          <td>${escapeHtml(u.name||'')}</td>
-          <td>${escapeHtml(u.role||'')}</td>
-          <td>
-            <button class="btn btn-outline" data-id="${s.id}" data-a="promote">Changer rôle</button>
-            <button class="btn btn-danger" data-id="${s.id}" data-a="deactivate">Désactiver</button>
-          </td>`;
-        tbody.appendChild(tr);
-      })
+  // Liste en cartes des comptes existants (collection 'users')
+  const list = $('#adm-list', host);
+  const unsub = onSnapshot(collection(db,'users'), (snap)=>{
+    list.innerHTML = '';
+    snap.forEach(s=>{
+      const u = s.data();
+      const card = document.createElement('div');
+      card.className = 'user-card';
+      card.innerHTML = `
+        <div class="uc-top">
+          <div class="uc-name">${escapeHtml(u.name||'(Sans nom)')}</div>
+          <span class="chip role">${escapeHtml(u.role||'pending')}</span>
+        </div>
+        <div class="uc-email">${escapeHtml(u.email||'')}</div>
+        <div class="uc-actions">
+          <button class="btn btn-outline" data-a="setrole" data-id="${s.id}">Changer rôle</button>
+          <button class="btn btn-danger" data-a="deactivate" data-id="${s.id}">${u.active===false?'Réactiver':'Désactiver'}</button>
+        </div>
+      `;
+      list.appendChild(card);
     });
+  });
 
-    tbody.addEventListener('click', async (e)=>{
-      const id=e.target?.dataset?.id; if(!id) return;
-      if(e.target.dataset.a==='deactivate'){
-        await updateDoc(doc(db,'users',id), { active:false });
-      }else if(e.target.dataset.a==='promote'){
-        const role = prompt('Nouveau rôle (admin/reception/technique/menage):', 'reception');
-        if(!ROLES.includes(role)) return alert('Rôle invalide');
-        await updateDoc(doc(db,'users',id), { role });
-      }
-    });
-  }
+  // Actions sur les cartes
+  $('#adm-list', host).addEventListener('click', async (e)=>{
+    const id = e.target?.dataset?.id; if(!id) return;
+    const action = e.target.dataset.a;
+    const ref = doc(db,'users', id);
+
+    if(action === 'deactivate'){
+      const snap = await getDoc(ref);
+      const curr = snap.data();
+      await updateDoc(ref, { active: !(curr?.active !== false) }); // toggle
+      return;
+    }
+
+    if(action === 'setrole'){
+      const role = prompt('Nouveau rôle (admin/reception/technique/menage):', 'reception');
+      if(!role || !['admin','reception','technique','menage'].includes(role)) return alert('Rôle invalide');
+      await updateDoc(ref, { role });
+      alert('Rôle mis à jour.');
+      return;
+    }
+  });
+}
 
   /******************* INVENTORY (tech or menage) ******************/
   function renderInventory(host, collectionName){
