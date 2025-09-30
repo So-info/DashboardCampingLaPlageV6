@@ -392,14 +392,30 @@ const firebaseConfig = {
 };
 
   // Charger Firebase modules dynamiquement pour rester dans un seul fichier
-  const [{ initializeApp }, { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut }, { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp }] = await Promise.all([
-    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js'),
-    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js'),
-  ]);
+const [{ initializeApp },
+       { getAuth, onAuthStateChanged,
+         GoogleAuthProvider,
+         signInWithPopup, signInWithRedirect, getRedirectResult,
+         setPersistence, browserLocalPersistence, inMemoryPersistence,
+         signOut },
+       { getFirestore, doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, serverTimestamp }
+] = await Promise.all([
+  import('https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js'),
+  import('https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js'),
+  import('https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js'),
+]);
+
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+
+// Persistance durable si possible (sinon mémoire)
+try { await setPersistence(auth, browserLocalPersistence); }
+catch { await setPersistence(auth, inMemoryPersistence); }
+
+// Si on revient d'un redirect, finalise la connexion (sinon no-op)
+try { await getRedirectResult(auth); } catch(e){ console.warn('redirect result:', e?.message||e); }
+
   const db = getFirestore(app);
 
   // DOM helpers
@@ -414,10 +430,39 @@ const firebaseConfig = {
   const ROLES = ['admin','reception','technique','menage'];
 
   // --- Auth UI ---
-  $('#btn-google').addEventListener('click', async ()=>{
-    const provider = new GoogleAuthProvider();
-    try { await signInWithPopup(auth, provider); } catch(e){ alert('Connexion impossible: '+e.message); }
-  });
+$('#btn-google').addEventListener('click', async ()=>{
+  const provider = new GoogleAuthProvider();
+
+  // iOS ou sessionStorage indisponible → tenter POPUP d'abord, sinon fallback REDIRECT
+  const sessOK = storageAvailable('sessionStorage');
+
+  try {
+    // 1) Essai popup (meilleur UX; marche sur Safari récent si déclenché par clic)
+    if (!isIOS && sessOK) {
+      await signInWithPopup(auth, provider);
+      return;
+    }
+
+    // 2) Fallback redirect (marche mieux dans certains navigateurs mobiles)
+    await signInWithRedirect(auth, provider);
+  } catch(e){
+    // 3) Si le redirect échoue à cause de sessionStorage, on informe proprement
+    const msg = (e && (e.message||'')).toLowerCase();
+    if (msg.includes('sessionstorage') || msg.includes('initial state')) {
+      alert(
+        "Impossible d'initialiser la connexion sur ce navigateur.\n\n" +
+        "Essayez l'une des options suivantes :\n" +
+        "• Ouvrir le site dans Safari (pas dans le navigateur intégré d'une app)\n" +
+        "• Quitter la navigation privée\n" +
+        "• Réactiver les cookies (Réglages > Safari > Bloquer tous les cookies = désactivé)\n" +
+        "• Ou utiliser Chrome/Firefox."
+      );
+    } else {
+      alert('Connexion impossible: ' + e.message);
+    }
+  }
+});
+
   $('#btn-logout').addEventListener('click', ()=> signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
@@ -678,6 +723,11 @@ function mountInterventionsKanban(container, allowActions, controlsRoot){
   container._unsub = unsub;
 }
 
+function storageAvailable(type){
+  try { const x='__t'; window[type].setItem(x,x); window[type].removeItem(x); return true; }
+  catch(e){ return false; }
+}
+const isIOS = /iP(ad|hone|od)/.test(navigator.platform) || /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 
   /********************* ADMIN ************************/ 
