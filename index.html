@@ -684,31 +684,46 @@ onAuthStateChanged(auth, async (user) => {
 
   currentRole = d.role || 'pending';
 
-// ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
-try {
-  // Enregistre le service worker AVANT de demander le token
-  const swReg = await navigator.serviceWorker.register("/DashboardCampingLaPlageV6/firebase-messaging-sw.js");
-  console.log("✅ Service worker enregistré :", swReg);
+  // ===================== 🔔 ENREGISTREMENT DU TOKEN FCM =====================
+  try {
+    // Enregistre le service worker AVANT de demander le token
+    const swReg = await navigator.serviceWorker.register("./firebase-messaging-sw.js");
+    console.log("✅ Service worker enregistré :", swReg);
 
-  const token = await getToken(messaging, {
-    vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc",
-    serviceWorkerRegistration: swReg
-  });
-
-  if (token) {
-    // On stocke le token avec comme ID = le token lui-même
-    await setDoc(doc(db, "fcmTokens", token), {
-      userId: user.uid,
-      role: currentRole,
-      createdAt: serverTimestamp()
+    const token = await getToken(messaging, {
+      vapidKey: "BPKgPrrL0moVNGyq0YZRAq4nvnT4LETMjqN6-NPXhVwJoQ-MepDseaReQSsPkpBFaKKLPbx3h1RJ21ILekzNCGc",
+      serviceWorkerRegistration: swReg
     });
-    console.log("✅ Token FCM enregistré :", token);
-  } else {
-    console.warn("⚠️ Aucun token FCM obtenu (permission refusée ?)");
+
+    if (token) {
+      // On stocke le token avec comme ID = le token lui-même
+      await setDoc(doc(db, "fcmTokens", token), {
+        userId: user.uid,
+        role: currentRole,
+        createdAt: serverTimestamp()
+      });
+      console.log("✅ Token FCM enregistré :", token);
+    } else {
+      console.warn("⚠️ Aucun token FCM obtenu (permission refusée ?)");
+    }
+  } catch (err) {
+    console.error("❌ Erreur lors de la récupération du token FCM :", err);
   }
-} catch (err) {
-  console.error("❌ Erreur lors de la récupération du token FCM :", err);
-}
+  // ==========================================================================
+
+  // --- UI ---
+  $('#user-email').textContent = currentUser.email || '';
+  $('#role-badge').textContent = currentRole || '';
+  show();
+  buildTabs();
+  navigateTo(defaultRoute());
+
+  // --- Synchro éventuelle avec 'directory' ---
+  try {
+    await syncRoleFromDirectory();
+  } catch (_) {}
+});
+
 // ==========================================================================
 
   // Routing based on role
