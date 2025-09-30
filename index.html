@@ -141,6 +141,29 @@ tr td:last-child{border-radius:0 14px 14px 0}
 .uc-actions{display:flex;gap:8px;flex-wrap:wrap}
 .chip.role{background:#eef2ff;color:#3730a3}
 
+/* ===== Inventaire (cards) ===== */
+.inv-card{
+  background:#fff;border:1px solid #e6ebf2;border-radius:16px;
+  padding:14px; box-shadow: var(--shadow);
+}
+.inv-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.inv-name{font-weight:900}
+.inv-top .qty{
+  min-width:42px;text-align:center;padding:4px 10px;border-radius:999px;
+  background:#f1f5f9;border:1px solid #e6ebf2;font-weight:900;
+}
+.inv-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ===== Tickets (badges & actions) ===== */
+.t-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.t-title{font-weight:900}
+.t-details{margin:8px 0}
+.t-chips{margin:6px 0 2px}
+.ticket-actions{display:flex;gap:8px;margin-top:10px}
+.chip.pr.normal{background:#eff6ff;color:#1d4ed8}
+.chip.pr.high{background:#fff7ed;color:#9a3412}
+.chip.pr.urgent{background:#fef2f2;color:#b91c1c}
+
 /* full-width primary button on mobile */
 .actions-right{display:flex;justify-content:flex-end}
   </style>
@@ -292,22 +315,19 @@ tr td:last-child{border-radius:0 14px 14px 0}
 
 <template id="tpl-inventory">
   <div class="grid">
-    <div class="row">
-      <input id="inv-name" class="col" type="text" placeholder="Nouvel objet">
-      <input id="inv-qty" style="max-width:120px" type="number" value="1"/>
-      <button id="inv-add" class="btn btn-primary">Ajouter</button>
+    <div class="card">
+      <div class="row">
+        <input id="inv-name" class="col" type="text" placeholder="Nouvel objet">
+        <input id="inv-qty" style="max-width:120px" type="number" value="1"/>
+        <button id="inv-add" class="btn btn-primary">Ajouter</button>
+      </div>
     </div>
 
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Objet</th><th>Qté</th><th>– / +</th><th>Supprimer</th></tr>
-        </thead>
-        <tbody id="inv-rows"></tbody>
-      </table>
-    </div>
+    <!-- Liste en cartes -->
+    <div id="inv-list" class="list"></div>
   </div>
 </template>
+
 
 <script type="module">
   /*************************************************
@@ -500,59 +520,66 @@ function renderPending(host){
 }
 
   // Shared kanban renderer for interventions
-  function mountInterventionsKanban(container, allowActions){
-    const cols = [
-      {key:'a_faire', title:'À faire'},
-      {key:'en_cours', title:'En cours'},
-      {key:'termine', title:'Terminé'},
-    ];
-    container.innerHTML = cols.map(c=>`<div class="kanban-col" data-col="${c.key}"><h3>${c.title}</h3><div class="col-body"></div></div>`).join('');
+function mountInterventionsKanban(container, allowActions){
+  const cols = [
+    {key:'a_faire', title:'À faire'},
+    {key:'en_cours', title:'En cours'},
+    {key:'termine', title:'Terminé'},
+  ];
+  container.innerHTML = cols
+    .map(c=>`<div class="kanban-col" data-col="${c.key}"><h3>${c.title}</h3><div class="col-body"></div></div>`)
+    .join('');
 
-    const q = query(collection(db,'interventions'), orderBy('createdAt','desc'));
-    const unsub = onSnapshot(q, (snap)=>{
-      // reset
-      $$('.kanban-col .col-body', container).forEach(b=> b.innerHTML='');
-      snap.forEach(docSnap=>{
-        const d = docSnap.data();
-        const card = document.createElement('div');
-        card.className='ticket';
-        card.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-            <div style="font-weight:800">MH ${escapeHtml(d.mobilhome||'?')}</div>
-            <span class="chip ${d.clientsPresent?'green':'red'}">Clients ${d.clientsPresent?'présents':'absents'}</span>
-            <span class="chip ${d.autorise?'green':'red'}">${d.autorise?'Autorisé':'Interdit'}</span>
-          </div>
-          <div class="meta">${(d.priority||'normale').toUpperCase()} • ${d.createdByEmail||''}</div>
-          ${d.details?`<div style="margin-top:6px">${escapeHtml(d.details)}</div>`:''}
-          <div class="row" style="margin-top:10px">
-            ${allowActions ? actionsHtml() : ''}
-          </div>
-        `;
-        function actionsHtml(){
-          if(currentRole==='technique' || currentRole==='admin'){
-            return `
-              <button class="btn btn-outline" data-act="to_en_cours">En cours</button>
-              <button class="btn btn-success" data-act="to_termine">Terminer</button>
-            `;
-          }
-          return '';
-        }
-        // actions
-        card.addEventListener('click', async (e)=>{
-          const act = e.target?.dataset?.act; if(!act) return;
-          const ref = doc(db,'interventions', docSnap.id);
-          try{
-            if(act==='to_en_cours') await updateDoc(ref, { status:'en_cours' });
-            if(act==='to_termine') await updateDoc(ref, { status:'termine', doneBy: currentUser.email, doneAt:serverTimestamp() });
-          }catch(err){ alert(err.message); }
-        });
-        const mount = $(`.kanban-col[data-col="${d.status||'a_faire'}"] .col-body`, container);
-        (mount||$(`.kanban-col[data-col="a_faire"] .col-body`, container)).appendChild(card);
+  const q = query(collection(db,'interventions'), orderBy('createdAt','desc'));
+  const unsub = onSnapshot(q, (snap)=>{
+    $$('.kanban-col .col-body', container).forEach(b=> b.innerHTML='');
+    snap.forEach(docSnap=>{
+      const d = docSnap.data();
+      const pr = (d.priority||'normale').toLowerCase();
+      const prClass = pr==='urgente' ? 'urgent' : (pr==='haute' ? 'high' : 'normal');
+
+      const card = document.createElement('div');
+      card.className='ticket';
+      card.innerHTML = `
+        <div class="t-top">
+          <div class="t-title">MH <b>${escapeHtml(d.mobilhome||'?')}</b></div>
+          <span class="chip pr ${prClass}">${(d.priority||'normale').toUpperCase()}</span>
+        </div>
+
+        ${d.details?`<div class="t-details">${escapeHtml(d.details)}</div>`:''}
+
+        <div class="t-chips">
+          <span class="chip ${d.clientsPresent?'green':'red'}">Clients ${d.clientsPresent?'présents':'absents'}</span>
+          <span class="chip ${d.autorise?'green':'red'}">${d.autorise?'Autorisé':'Interdit'}</span>
+        </div>
+
+        <div class="meta">${escapeHtml(d.createdByEmail||'')}</div>
+
+        ${allowActions && (currentRole==='technique' || currentRole==='admin') ? `
+          <div class="ticket-actions">
+            <button class="btn btn-outline" data-act="to_en_cours">En cours</button>
+            <button class="btn btn-success" data-act="to_termine">Terminer</button>
+          </div>` : '' }
+      `;
+
+      card.addEventListener('click', async (e)=>{
+        const act = e.target?.dataset?.act; if(!act) return;
+        const ref = doc(db,'interventions', docSnap.id);
+        try{
+          if(act==='to_en_cours') await updateDoc(ref, { status:'en_cours' });
+          if(act==='to_termine') await updateDoc(ref, { status:'termine', doneBy: currentUser.email, doneAt:serverTimestamp() });
+        }catch(err){ alert(err.message); }
       });
+
+      const mount = $(`.kanban-col[data-col="${d.status||'a_faire'}"] .col-body`, container)
+                 || $(`.kanban-col[data-col="a_faire"] .col-body`, container);
+      mount.appendChild(card);
     });
-    // store unsub if needed later
-    container._unsub = unsub;
-  }
+  });
+
+  container._unsub = unsub;
+}
+
 
   /********************* ADMIN ************************/ 
 function renderAdmin(host){
@@ -618,49 +645,55 @@ function renderAdmin(host){
 }
 
   /******************* INVENTORY (tech or menage) ******************/
-  function renderInventory(host, collectionName){
-    host.appendChild(document.importNode($('#tpl-inventory').content,true));
-    const rows = $('#inv-rows', host);
+function renderInventory(host, collectionName){
+  host.appendChild(document.importNode($('#tpl-inventory').content,true));
+  const list = $('#inv-list', host);
 
-    $('#inv-add', host).addEventListener('click', async ()=>{
-      const name = $('#inv-name', host).value.trim();
-      const qty = parseInt($('#inv-qty', host).value||'0',10);
-      if(!name) return alert('Objet requis');
-      await addDoc(collection(db, collectionName), { name, qty, createdAt:serverTimestamp() });
-      $('#inv-name', host).value='';
-    });
+  $('#inv-add', host).addEventListener('click', async ()=>{
+    const name = $('#inv-name', host).value.trim();
+    const qty = parseInt($('#inv-qty', host).value||'0',10);
+    if(!name) return alert('Objet requis');
+    await addDoc(collection(db, collectionName), { name, qty, createdAt:serverTimestamp() });
+    $('#inv-name', host).value='';
+  });
 
-    const unsub = onSnapshot(query(collection(db,collectionName), orderBy('name')), (snap)=>{
-      rows.innerHTML='';
-      snap.forEach(s=>{
-        const d=s.data();
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${escapeHtml(d.name)}</td>
-          <td>${d.qty}</td>
-          <td>
-            <button class="btn btn-outline" data-a="minus" data-id="${s.id}">–1</button>
-            <button class="btn btn-outline" data-a="plus" data-id="${s.id}">+1</button>
-          </td>
-          <td><button class="btn btn-danger" data-a="del" data-id="${s.id}">Supprimer</button></td>
-        `;
-        rows.appendChild(tr);
-      })
+  const unsub = onSnapshot(query(collection(db,collectionName), orderBy('name')), (snap)=>{
+    list.innerHTML='';
+    snap.forEach(s=>{
+      const d=s.data();
+      const card=document.createElement('div');
+      card.className='inv-card';
+      card.innerHTML=`
+        <div class="inv-top">
+          <div class="inv-name">${escapeHtml(d.name)}</div>
+          <span class="qty">${d.qty}</span>
+        </div>
+        <div class="inv-actions">
+          <button class="btn btn-outline" data-a="minus" data-id="${s.id}">–1</button>
+          <button class="btn btn-outline" data-a="plus" data-id="${s.id}">+1</button>
+          <button class="btn btn-danger" data-a="del" data-id="${s.id}">Supprimer</button>
+        </div>
+      `;
+      list.appendChild(card);
     });
+  });
 
-    rows.addEventListener('click', async (e)=>{
-      const id=e.target?.dataset?.id; if(!id) return;
-      const ref = doc(db,collectionName,id);
-      const a = e.target.dataset.a;
-      if(a==='del'){ if(confirm('Supprimer ?')) await deleteDoc(ref); return; }
-      // change qty atomically (simple read+write; for heavy use switch to increment)
-      const curr = (await getDoc(ref)).data();
-      let qty = curr?.qty||0;
-      if(a==='plus') qty++;
-      if(a==='minus') qty=Math.max(0,qty-1);
-      await updateDoc(ref,{ qty });
-    });
-  }
+  // actions
+  list.addEventListener('click', async (e)=>{
+    const id=e.target?.dataset?.id; if(!id) return;
+    const ref = doc(db,collectionName,id);
+    const a = e.target.dataset.a;
+
+    if(a==='del'){ if(confirm('Supprimer ?')) await deleteDoc(ref); return; }
+
+    const curr = (await getDoc(ref)).data(); // simple R/W; peut être remplacé par FieldValue.increment
+    let qty = curr?.qty||0;
+    if(a==='plus') qty++;
+    if(a==='minus') qty=Math.max(0,qty-1);
+    await updateDoc(ref,{ qty });
+  });
+}
+
 
   /****************** UTIL ************************/ 
   function escapeHtml(x=''){ return x.replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
