@@ -173,6 +173,27 @@ tr td:last-child{border-radius:0 14px 14px 0}
 .col-count{font-size:12px;background:#f1f5f9;border:1px solid #e6ebf2;border-radius:999px;padding:4px 8px;min-width:28px;text-align:center}
 .kanban-col h3{display:flex;align-items:center;justify-content:space-between}
 
+/* ===== Hamburger + Drawer ===== */
+header .left{display:flex;align-items:center;gap:10px}
+.hamburger{width:44px;height:44px;border-radius:12px;border:1px solid #e6ebf2;background:#fff;
+  display:inline-flex;align-items:center;justify-content:center}
+.hamburger span{display:block;width:20px;height:2px;background:#0b1220;margin:2.5px 0;border-radius:2px}
+.drawer{position:fixed;inset:0;pointer-events:none;z-index:50}
+.drawer-backdrop{position:absolute;inset:0;background:rgba(2,6,23,.35);opacity:0;transition:opacity .2s}
+.drawer-panel{position:absolute;left:0;top:0;bottom:0;width:86vw;max-width:320px;background:#fff;
+  border-right:1px solid #e6ebf2;box-shadow:var(--shadow);transform:translateX(-105%);transition:transform .25s}
+.drawer.open{pointer-events:auto}
+.drawer.open .drawer-backdrop{opacity:1}
+.drawer.open .drawer-panel{transform:translateX(0)}
+.drawer-top{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid #eaeef5}
+.drawer-top img{height:32px;object-fit:contain}
+.drawer-top .email{font-size:12px;color:#64748b}
+.menu{display:flex;flex-direction:column;padding:12px}
+.menu .menu-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #e6ebf2;
+  background:#fff;border-radius:12px;margin-bottom:10px;font-weight:800}
+.menu .menu-item.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.drawer-bottom{padding:12px;border-top:1px solid #eaeef5}
+
   </style>
 </head>
 <body>
@@ -193,15 +214,41 @@ tr td:last-child{border-radius:0 14px 14px 0}
 
 <!-- APP SHELL -->
 <section id="view-app" class="hidden">
-  <header>
-    <div>
-      <div style="font-weight:900">Bon après‑midi !</div>
-      <div style="font-size:12px;color:#475569">Rôle: <span id="role-badge" class="role-badge">…</span> · Connecté : <span id="user-email">…</span></div>
+<header>
+  <div class="left">
+    <button id="btn-menu" class="hamburger" aria-label="Ouvrir le menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="tit">
+      <div style="font-weight:900">Bon après-midi !</div>
+      <div style="font-size:12px;color:#475569">
+        Rôle: <span id="role-badge" class="role-badge">…</span> ·
+        Connecté : <span id="user-email">…</span>
+      </div>
     </div>
-    <button id="btn-logout" class="btn btn-outline">Se déconnecter</button>
-  </header>
+  </div>
+  <button id="btn-logout" class="btn btn-outline">Se déconnecter</button>
+</header>
 
-  <nav class="tabs" id="nav-tabs"></nav>
+
+<!-- Drawer (menu hamburger) -->
+<div id="drawer" class="drawer">
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="drawer-panel">
+    <div class="drawer-top">
+      <img src="logo-camping-la-plage.png" alt="La Plage">
+      <div>
+        <div>Rôle : <span id="role-badge2" class="role-badge">…</span></div>
+        <div class="email" id="user-email2">…</div>
+      </div>
+    </div>
+    <nav id="menu-list" class="menu"></nav>
+    <div class="drawer-bottom">
+      <button id="drawer-logout" class="btn btn-outline" style="width:100%">Se déconnecter</button>
+    </div>
+  </aside>
+</div>
+
 
   <div class="container grid" id="route-container">
     <!-- content injected -->
@@ -536,20 +583,41 @@ const labels = {
 
   const defaultRoute = ()=> routesByRole[currentRole]?.[0] || 'reception';
 
-  function buildTabs(){
-    const tabs = routesByRole[currentRole]||[];
-    const nav = $('#nav-tabs');
-    nav.innerHTML = '';
-    for(const r of tabs){
-      const a = document.createElement('button');
-      a.className = 'tab'; a.textContent = labels[r]||r; a.dataset.route=r;
-      a.addEventListener('click', ()=> navigateTo(r));
-      nav.appendChild(a);
-    }
+function buildTabs(){
+  const items = routesByRole[currentRole] || [];
+  const menu = $('#menu-list');
+  menu.innerHTML = '';
+  for(const r of items){
+    const b = document.createElement('button');
+    b.className = 'menu-item';
+    b.dataset.route = r;
+    b.textContent = labels[r] || r;
+    b.addEventListener('click', ()=>{ navigateTo(r); closeDrawer(); });
+    menu.appendChild(b);
   }
-  function setActiveTab(route){
-    $$('#nav-tabs .tab').forEach(t=> t.classList.toggle('active', t.dataset.route===route));
-  }
+  // infos dans le drawer
+  $('#user-email2').textContent = currentUser?.email || '';
+  $('#role-badge2').textContent = currentRole || '';
+}
+
+function setActiveTab(route){
+  $$('#menu-list .menu-item').forEach(b=> b.classList.toggle('active', b.dataset.route===route));
+}
+
+function openDrawer(){ $('#drawer').classList.add('open'); $('#btn-menu')?.setAttribute('aria-expanded','true'); }
+function closeDrawer(){ $('#drawer').classList.remove('open'); $('#btn-menu')?.setAttribute('aria-expanded','false'); }
+
+// Ouverture / fermeture
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id === 'btn-menu') openDrawer();
+  if(e.target && e.target.id === 'drawer-backdrop') closeDrawer();
+});
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeDrawer(); });
+
+// Logout depuis le drawer
+document.addEventListener('click', (e)=>{
+  if(e.target && e.target.id === 'drawer-logout') signOut(auth);
+});
 
   window.addEventListener('hashchange', ()=> navigateTo(location.hash.replace('#','')));
 
